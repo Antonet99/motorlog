@@ -1,9 +1,10 @@
-import { CarFront, CircleDollarSign, Fuel, Gauge } from 'lucide-react';
-import type { Refuel, Vehicle } from '../types/domain';
+import { CarFront, CircleDollarSign, Fuel, Gauge, ReceiptText } from 'lucide-react';
+import type { Expense, Refuel, Vehicle } from '../types/domain';
 
 interface OverviewSectionProps {
   vehicles: Vehicle[];
   refuels: Refuel[];
+  expenses: Expense[];
 }
 
 const currencyFormatter = new Intl.NumberFormat('it-IT', {
@@ -25,11 +26,40 @@ function formatDate(value: string) {
   return dateFormatter.format(new Date(`${value}T12:00:00`));
 }
 
-export function OverviewSection({ vehicles, refuels }: OverviewSectionProps) {
+type LatestMovement =
+  | { kind: 'refuel'; item: Refuel }
+  | { kind: 'expense'; item: Expense }
+  | null;
+
+function getLatestMovement(refuels: Refuel[], expenses: Expense[]): LatestMovement {
+  const latestRefuel = refuels[0] ?? null;
+  const latestExpense = expenses[0] ?? null;
+
+  if (!latestRefuel && !latestExpense) {
+    return null;
+  }
+
+  if (!latestExpense) {
+    return { kind: 'refuel', item: latestRefuel as Refuel };
+  }
+
+  if (!latestRefuel) {
+    return { kind: 'expense', item: latestExpense };
+  }
+
+  const refuelKey = `${latestRefuel.date}-${latestRefuel.updated_at}`;
+  const expenseKey = `${latestExpense.date}-${latestExpense.updated_at}`;
+
+  return refuelKey >= expenseKey
+    ? { kind: 'refuel', item: latestRefuel }
+    : { kind: 'expense', item: latestExpense };
+}
+
+export function OverviewSection({ vehicles, refuels, expenses }: OverviewSectionProps) {
   const activeVehicle = vehicles.find(vehicle => vehicle.is_active) ?? null;
-  const lastRefuel = refuels[0] ?? null;
   const fuelSpend = refuels.reduce((total, refuel) => total + refuel.total_cost, 0);
-  const totalLiters = refuels.reduce((total, refuel) => total + refuel.liters, 0);
+  const totalExpenses = expenses.reduce((total, expense) => total + expense.amount, 0);
+  const latestMovement = getLatestMovement(refuels, expenses);
 
   return (
     <section className="space-y-4">
@@ -42,8 +72,8 @@ export function OverviewSection({ vehicles, refuels }: OverviewSectionProps) {
           {activeVehicle ? activeVehicle.name : 'Nessun veicolo attivo'}
         </h2>
         <p className="mt-2 text-sm leading-6 text-slate-300">
-          {lastRefuel
-            ? `Ultimo rifornimento il ${formatDate(lastRefuel.date)}.`
+          {latestMovement
+            ? `Ultimo movimento il ${formatDate(latestMovement.item.date)}.`
             : 'Quando registri i primi movimenti, qui trovi il colpo d’occhio del garage.'}
         </p>
       </div>
@@ -68,20 +98,20 @@ export function OverviewSection({ vehicles, refuels }: OverviewSectionProps) {
         <div className="rounded-[1.5rem] border border-white/8 bg-slate-900/80 p-4">
           <div className="flex items-center justify-between">
             <span className="text-sm text-slate-400">Spesa carburante</span>
-            <CircleDollarSign className="h-4 w-4 text-amber-300" />
+            <CircleDollarSign className="h-4 w-4 text-emerald-300" />
           </div>
           <p className="mt-3 text-lg font-semibold text-white">
-            {formatCurrency(fuelSpend)}
+            {fuelSpend > 0 ? formatCurrency(fuelSpend) : '--'}
           </p>
         </div>
 
         <div className="rounded-[1.5rem] border border-white/8 bg-slate-900/80 p-4">
           <div className="flex items-center justify-between">
-            <span className="text-sm text-slate-400">Litri registrati</span>
-            <Fuel className="h-4 w-4 text-emerald-300" />
+            <span className="text-sm text-slate-400">Altre spese</span>
+            <ReceiptText className="h-4 w-4 text-amber-300" />
           </div>
           <p className="mt-3 text-lg font-semibold text-white">
-            {totalLiters > 0 ? `${totalLiters.toFixed(1)} L` : '--'}
+            {totalExpenses > 0 ? formatCurrency(totalExpenses) : '--'}
           </p>
         </div>
       </div>
@@ -93,20 +123,30 @@ export function OverviewSection({ vehicles, refuels }: OverviewSectionProps) {
               Ultimo movimento
             </p>
             <h3 className="mt-2 text-lg font-semibold text-white">
-              {lastRefuel ? 'Rifornimento registrato' : 'Ancora nessun movimento'}
+              {latestMovement?.kind === 'expense'
+                ? latestMovement.item.category
+                : latestMovement?.kind === 'refuel'
+                  ? 'Rifornimento registrato'
+                  : 'Ancora nessun movimento'}
             </h3>
           </div>
-          {lastRefuel ? (
+          {latestMovement?.kind === 'refuel' ? (
             <span className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-100">
-              {lastRefuel.is_full_tank ? 'Pieno' : 'Parziale'}
+              {latestMovement.item.is_full_tank ? 'Pieno' : 'Parziale'}
+            </span>
+          ) : latestMovement?.kind === 'expense' ? (
+            <span className="rounded-full border border-amber-400/20 bg-amber-500/10 px-3 py-1 text-xs font-medium text-amber-100">
+              Spesa
             </span>
           ) : null}
         </div>
 
         <p className="mt-2 text-sm leading-6 text-slate-300">
-          {lastRefuel
-            ? `${formatDate(lastRefuel.date)} • ${formatCurrency(lastRefuel.total_cost)} • ${lastRefuel.liters.toFixed(1)} L`
-            : 'Aggiungi un veicolo e registra il primo rifornimento per iniziare la cronologia.'}
+          {latestMovement?.kind === 'refuel'
+            ? `${formatDate(latestMovement.item.date)} • ${formatCurrency(latestMovement.item.total_cost)} • ${latestMovement.item.liters.toFixed(1)} L`
+            : latestMovement?.kind === 'expense'
+              ? `${formatDate(latestMovement.item.date)} • ${formatCurrency(latestMovement.item.amount)} • ${latestMovement.item.category}`
+              : 'Aggiungi un veicolo e registra i primi movimenti per iniziare la cronologia.'}
         </p>
       </div>
     </section>

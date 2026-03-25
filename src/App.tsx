@@ -24,13 +24,17 @@ import {
   signInWithGoogle,
 } from './lib/firebase';
 import {
+  createExpense,
   createRefuel,
   createVehicle,
+  deleteExpense,
   deleteRefuel,
   deleteVehicle,
   getReadableDataError,
+  subscribeToExpenses,
   subscribeToRefuels,
   subscribeToVehicles,
+  updateExpense,
   updateRefuel,
   updateVehicle,
 } from './lib/data';
@@ -40,6 +44,8 @@ import { RefuelsSection } from './sections/RefuelsSection';
 import { VehiclesSection } from './sections/VehiclesSection';
 import type {
   AppTab,
+  Expense,
+  ExpenseInput,
   QuickAddType,
   Refuel,
   RefuelInput,
@@ -52,11 +58,13 @@ type ToastTone = 'success' | 'error' | 'info';
 type ModalState =
   | { kind: 'vehicle'; mode: 'create' | 'edit'; vehicle?: Vehicle | null }
   | { kind: 'refuel'; mode: 'create' | 'edit'; refuel?: Refuel | null }
+  | { kind: 'expense'; mode: 'create' | 'edit'; expense?: Expense | null }
   | null;
 
 type PendingDeletion =
   | { kind: 'vehicle'; vehicle: Vehicle; timeoutId: number }
-  | { kind: 'refuel'; refuel: Refuel; timeoutId: number };
+  | { kind: 'refuel'; refuel: Refuel; timeoutId: number }
+  | { kind: 'expense'; expense: Expense; timeoutId: number };
 
 interface ToastState {
   message: string;
@@ -162,8 +170,10 @@ export default function App() {
   );
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [refuels, setRefuels] = useState<Refuel[]>([]);
+  const [expenses, setExpenses] = useState<Expense[]>([]);
   const [isVehiclesReady, setIsVehiclesReady] = useState(false);
   const [isRefuelsReady, setIsRefuelsReady] = useState(false);
+  const [isExpensesReady, setIsExpensesReady] = useState(false);
   const [activeTab, setActiveTab] = useState<AppTab>('overview');
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
   const [modalState, setModalState] = useState<ModalState>(null);
@@ -230,8 +240,10 @@ export default function App() {
     if (!isAuthReady || !user) {
       setVehicles([]);
       setRefuels([]);
+      setExpenses([]);
       setIsVehiclesReady(false);
       setIsRefuelsReady(false);
+      setIsExpensesReady(false);
       return;
     }
 
@@ -265,9 +277,25 @@ export default function App() {
       },
     );
 
+    const unsubscribeExpenses = subscribeToExpenses(
+      user.uid,
+      nextExpenses => {
+        setExpenses(nextExpenses);
+        setIsExpensesReady(true);
+      },
+      error => {
+        console.error('Error fetching expenses', error);
+        setToast({
+          message: getReadableDataError(error),
+          tone: 'error',
+        });
+      },
+    );
+
     return () => {
       unsubscribeVehicles();
       unsubscribeRefuels();
+      unsubscribeExpenses();
     };
   }, [isAuthReady, user]);
 
@@ -313,6 +341,10 @@ export default function App() {
     pendingDeletion?.kind === 'refuel'
       ? refuels.filter(refuel => refuel.id !== pendingDeletion.refuel.id)
       : refuels;
+  const visibleExpenses =
+    pendingDeletion?.kind === 'expense'
+      ? expenses.filter(expense => expense.id !== pendingDeletion.expense.id)
+      : expenses;
   const activeVehicle = visibleVehicles.find(vehicle => vehicle.is_active) ?? null;
   const sectionCopy = useMemo(() => getSectionCopy(activeTab), [activeTab]);
 
@@ -368,6 +400,19 @@ export default function App() {
     setActiveTab('refuels');
   };
 
+  const openCreateExpenseModal = () => {
+    if (visibleVehicles.length === 0) {
+      setToast({
+        message: 'Aggiungi prima un veicolo.',
+        tone: 'info',
+      });
+      return;
+    }
+
+    setModalState({ kind: 'expense', mode: 'create' });
+    setActiveTab('expenses');
+  };
+
   const handleCreateVehicle = async (input: VehicleInput) => {
     await createVehicle(input);
     setModalState(null);
@@ -402,14 +447,34 @@ export default function App() {
     setToast({ message: 'Rifornimento aggiornato.', tone: 'success' });
   };
 
+  const handleCreateExpense = async (input: ExpenseInput) => {
+    await createExpense(input);
+    setModalState(null);
+    setActiveTab('expenses');
+    setToast({ message: 'Spesa salvata.', tone: 'success' });
+  };
+
+  const handleUpdateExpense = async (input: ExpenseInput) => {
+    if (modalState?.kind !== 'expense' || modalState.mode !== 'edit' || !modalState.expense) {
+      return;
+    }
+
+    await updateExpense(modalState.expense.id, input);
+    setModalState(null);
+    setToast({ message: 'Spesa aggiornata.', tone: 'success' });
+  };
+
   const commitDeletion = async (deletion: PendingDeletion) => {
     try {
       if (deletion.kind === 'vehicle') {
         await deleteVehicle(deletion.vehicle.uid, deletion.vehicle.id);
         setToast({ message: 'Veicolo eliminato.', tone: 'info' });
-      } else {
+      } else if (deletion.kind === 'refuel') {
         await deleteRefuel(deletion.refuel.uid, deletion.refuel.id);
         setToast({ message: 'Rifornimento eliminato.', tone: 'info' });
+      } else {
+        await deleteExpense(deletion.expense.uid, deletion.expense.id);
+        setToast({ message: 'Spesa eliminata.', tone: 'info' });
       }
     } catch (error) {
       console.error('Failed to delete entry', error);
@@ -451,6 +516,16 @@ export default function App() {
     await scheduleDeletion({ kind: 'refuel', refuel, timeoutId });
   };
 
+  const handleDeleteExpense = async (expense: Expense) => {
+    setModalState(null);
+
+    const timeoutId = window.setTimeout(() => {
+      void commitDeletion({ kind: 'expense', expense, timeoutId });
+    }, 4200);
+
+    await scheduleDeletion({ kind: 'expense', expense, timeoutId });
+  };
+
   const handleUndoDelete = () => {
     if (!pendingDeletion) {
       return;
@@ -474,10 +549,7 @@ export default function App() {
       return;
     }
 
-    setToast({
-      message: 'Le spese arrivano nel prossimo slice.',
-      tone: 'info',
-    });
+    openCreateExpenseModal();
   };
 
   if (!isAuthReady || (isUsingFirebaseEmulators && !user && isPreparingLocalMode)) {
@@ -590,7 +662,11 @@ export default function App() {
       <main className="mx-auto max-w-md space-y-4 px-4 py-4">
         <div key={activeTab} className="section-enter">
           {activeTab === 'overview' ? (
-            <OverviewSection vehicles={visibleVehicles} refuels={visibleRefuels} />
+            <OverviewSection
+              vehicles={visibleVehicles}
+              refuels={visibleRefuels}
+              expenses={visibleExpenses}
+            />
           ) : activeTab === 'vehicles' ? (
             <VehiclesSection
               vehicles={visibleVehicles}
@@ -611,7 +687,15 @@ export default function App() {
               }
             />
           ) : (
-            <ExpensesSection />
+            <ExpensesSection
+              vehicles={visibleVehicles}
+              expenses={visibleExpenses}
+              isLoading={!isExpensesReady}
+              onAddExpense={openCreateExpenseModal}
+              onEditExpense={expense =>
+                setModalState({ kind: 'expense', mode: 'edit', expense })
+              }
+            />
           )}
         </div>
       </main>
@@ -709,13 +793,34 @@ export default function App() {
         />
       ) : null}
 
+      {modalState?.kind === 'expense' ? (
+        <AddEntryModal
+          entryType="expense"
+          uid={user.uid}
+          mode={modalState.mode}
+          expense={modalState.expense}
+          vehicles={visibleVehicles}
+          onClose={closeModal}
+          onDelete={
+            modalState.mode === 'edit' && modalState.expense
+              ? () => handleDeleteExpense(modalState.expense)
+              : undefined
+          }
+          onSubmit={
+            modalState.mode === 'create' ? handleCreateExpense : handleUpdateExpense
+          }
+        />
+      ) : null}
+
       {pendingDeletion ? (
         <div className="fixed inset-x-4 bottom-[calc(6.25rem+env(safe-area-inset-bottom))] z-40 mx-auto max-w-md">
           <div className="toast-enter flex items-center justify-between gap-3 rounded-3xl border border-white/8 bg-slate-900 px-4 py-3 text-sm text-white shadow-2xl">
             <span className="min-w-0 truncate">
               {pendingDeletion.kind === 'vehicle'
                 ? 'Veicolo rimosso.'
-                : 'Rifornimento rimosso.'}
+                : pendingDeletion.kind === 'refuel'
+                  ? 'Rifornimento rimosso.'
+                  : 'Spesa rimossa.'}
             </span>
             <button
               type="button"

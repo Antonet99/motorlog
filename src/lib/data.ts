@@ -12,6 +12,9 @@ import {
 } from 'firebase/firestore';
 import { db } from './firebase';
 import type {
+  Expense,
+  ExpenseCategory,
+  ExpenseInput,
   FuelType,
   Refuel,
   RefuelInput,
@@ -30,6 +33,19 @@ const FUEL_TYPES: FuelType[] = [
   'Ibrido diesel',
   'Elettrico',
 ];
+const EXPENSE_CATEGORIES: ExpenseCategory[] = [
+  'Rata',
+  'Assicurazione',
+  'Bollo',
+  'Revisione',
+  'Tagliando',
+  'Meccanico',
+  'Pedaggio',
+  'Parcheggio',
+  'Multa',
+  'Accessori',
+  'Altro',
+];
 
 function getVehiclesCollection(uid: string) {
   return collection(db, `users/${uid}/vehicles`);
@@ -37,6 +53,10 @@ function getVehiclesCollection(uid: string) {
 
 function getRefuelsCollection(uid: string) {
   return collection(db, `users/${uid}/refuels`);
+}
+
+function getExpensesCollection(uid: string) {
+  return collection(db, `users/${uid}/expenses`);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -49,6 +69,13 @@ function isVehicleType(value: unknown): value is VehicleType {
 
 function isFuelType(value: unknown): value is FuelType {
   return typeof value === 'string' && FUEL_TYPES.includes(value as FuelType);
+}
+
+function isExpenseCategory(value: unknown): value is ExpenseCategory {
+  return (
+    typeof value === 'string' &&
+    EXPENSE_CATEGORIES.includes(value as ExpenseCategory)
+  );
 }
 
 function asOptionalString(value: unknown) {
@@ -136,6 +163,17 @@ function sanitizeRefuelInput(input: RefuelInput) {
     date: input.date,
     is_full_tank: input.is_full_tank,
     station: asOptionalString(input.station),
+    notes: asOptionalString(input.notes),
+  };
+}
+
+function sanitizeExpenseInput(input: ExpenseInput) {
+  return {
+    uid: input.uid,
+    vehicle_id: input.vehicle_id,
+    category: input.category,
+    amount: Number(input.amount.toFixed(2)),
+    date: input.date,
     notes: asOptionalString(input.notes),
   };
 }
@@ -228,6 +266,39 @@ function parseRefuel(id: string, value: unknown): Refuel | null {
   };
 }
 
+function parseExpense(id: string, value: unknown): Expense | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const amount = asPositiveNumber(value.amount);
+  const date = asDayString(value.date);
+
+  if (
+    typeof value.uid !== 'string' ||
+    typeof value.vehicle_id !== 'string' ||
+    typeof value.created_at !== 'string' ||
+    typeof value.updated_at !== 'string' ||
+    !isExpenseCategory(value.category) ||
+    amount === null ||
+    date === null
+  ) {
+    return null;
+  }
+
+  return {
+    id,
+    uid: value.uid,
+    vehicle_id: value.vehicle_id,
+    category: value.category,
+    amount,
+    date,
+    notes: asOptionalString(value.notes),
+    created_at: value.created_at,
+    updated_at: value.updated_at,
+  };
+}
+
 function chooseFallbackVehicle(vehicles: Vehicle[], excludeId: string) {
   return vehicles
     .filter(vehicle => vehicle.id !== excludeId)
@@ -305,6 +376,28 @@ export function subscribeToRefuels(
         .filter((refuel): refuel is Refuel => refuel !== null);
 
       onData(nextRefuels);
+    },
+    error => {
+      onError?.(error);
+    },
+  );
+}
+
+export function subscribeToExpenses(
+  uid: string,
+  onData: (expenses: Expense[]) => void,
+  onError?: (error: Error) => void,
+) {
+  const expensesQuery = query(getExpensesCollection(uid), orderBy('date', 'desc'));
+
+  return onSnapshot(
+    expensesQuery,
+    snapshot => {
+      const nextExpenses = snapshot.docs
+        .map(document => parseExpense(document.id, document.data()))
+        .filter((expense): expense is Expense => expense !== null);
+
+      onData(nextExpenses);
     },
     error => {
       onError?.(error);
@@ -399,14 +492,24 @@ export async function updateVehicle(vehicleId: string, input: VehicleInput) {
 
 export async function deleteVehicle(uid: string, vehicleId: string) {
   const vehicleRef = doc(getVehiclesCollection(uid), vehicleId);
-  const [vehicleSnapshot, vehiclesSnapshot, linkedRefuelsSnapshot] = await Promise.all([
+  const [
+    vehicleSnapshot,
+    vehiclesSnapshot,
+    linkedRefuelsSnapshot,
+    linkedExpensesSnapshot,
+  ] = await Promise.all([
     getDoc(vehicleRef),
     getDocs(query(getVehiclesCollection(uid), orderBy('updated_at', 'desc'))),
     getDocs(query(getRefuelsCollection(uid), where('vehicle_id', '==', vehicleId))),
+    getDocs(query(getExpensesCollection(uid), where('vehicle_id', '==', vehicleId))),
   ]);
 
   if (!linkedRefuelsSnapshot.empty) {
     throw new Error('Elimina prima i rifornimenti collegati al veicolo.');
+  }
+
+  if (!linkedExpensesSnapshot.empty) {
+    throw new Error('Elimina prima le spese collegate al veicolo.');
   }
 
   if (!vehicleSnapshot.exists()) {
@@ -445,14 +548,15 @@ export async function createRefuel(input: RefuelInput) {
   const now = new Date().toISOString();
   const refuelRef = doc(getRefuelsCollection(input.uid));
   const normalizedInput = sanitizeRefuelInput(input);
+  const batch = writeBatch(db);
 
-  await writeBatch(db)
-    .set(refuelRef, {
-      ...normalizedInput,
-      created_at: now,
-      updated_at: now,
-    })
-    .commit();
+  batch.set(refuelRef, {
+    ...normalizedInput,
+    created_at: now,
+    updated_at: now,
+  });
+
+  await batch.commit();
 }
 
 export async function updateRefuel(refuelId: string, input: RefuelInput) {
@@ -471,16 +575,66 @@ export async function updateRefuel(refuelId: string, input: RefuelInput) {
     throw new Error('Dati rifornimento non validi.');
   }
 
-  await writeBatch(db)
-    .update(refuelRef, {
-      ...sanitizeRefuelInput(input),
-      uid: currentRefuel.uid,
-      created_at: currentRefuel.created_at,
-      updated_at: new Date().toISOString(),
-    })
-    .commit();
+  const batch = writeBatch(db);
+
+  batch.update(refuelRef, {
+    ...sanitizeRefuelInput(input),
+    uid: currentRefuel.uid,
+    created_at: currentRefuel.created_at,
+    updated_at: new Date().toISOString(),
+  });
+
+  await batch.commit();
 }
 
 export async function deleteRefuel(uid: string, refuelId: string) {
   await deleteDoc(doc(getRefuelsCollection(uid), refuelId));
+}
+
+export async function createExpense(input: ExpenseInput) {
+  await ensureVehicleExists(input.uid, input.vehicle_id);
+
+  const now = new Date().toISOString();
+  const expenseRef = doc(getExpensesCollection(input.uid));
+  const batch = writeBatch(db);
+
+  batch.set(expenseRef, {
+    ...sanitizeExpenseInput(input),
+    created_at: now,
+    updated_at: now,
+  });
+
+  await batch.commit();
+}
+
+export async function updateExpense(expenseId: string, input: ExpenseInput) {
+  await ensureVehicleExists(input.uid, input.vehicle_id);
+
+  const expenseRef = doc(getExpensesCollection(input.uid), expenseId);
+  const expenseSnapshot = await getDoc(expenseRef);
+
+  if (!expenseSnapshot.exists()) {
+    throw new Error('Spesa non trovata.');
+  }
+
+  const currentExpense = parseExpense(expenseSnapshot.id, expenseSnapshot.data());
+
+  if (!currentExpense) {
+    throw new Error('Dati spesa non validi.');
+  }
+
+  const batch = writeBatch(db);
+
+  batch.update(expenseRef, {
+    ...sanitizeExpenseInput(input),
+    uid: currentExpense.uid,
+    created_at: currentExpense.created_at,
+    updated_at: new Date().toISOString(),
+  });
+
+  await batch.commit();
+}
+
+export async function deleteExpense(uid: string, expenseId: string) {
+  await deleteDoc(doc(getExpensesCollection(uid), expenseId));
 }

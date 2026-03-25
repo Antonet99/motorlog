@@ -1,8 +1,18 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Bike, CarFront, Droplets, Trash2, X } from 'lucide-react';
 import {
+  Bike,
+  CarFront,
+  CircleDollarSign,
+  Droplets,
+  Trash2,
+  X,
+} from 'lucide-react';
+import {
+  EXPENSE_CATEGORIES,
   FUEL_TYPES,
   VEHICLE_TYPES,
+  type Expense,
+  type ExpenseInput,
   type Refuel,
   type RefuelInput,
   type Vehicle,
@@ -32,7 +42,18 @@ type RefuelModalProps = {
   onSubmit: (input: RefuelInput) => Promise<void>;
 };
 
-type AddEntryModalProps = VehicleModalProps | RefuelModalProps;
+type ExpenseModalProps = {
+  entryType: 'expense';
+  uid: string;
+  mode: 'create' | 'edit';
+  expense?: Expense | null;
+  vehicles: Vehicle[];
+  onClose: () => void;
+  onDelete?: () => Promise<void> | void;
+  onSubmit: (input: ExpenseInput) => Promise<void>;
+};
+
+type AddEntryModalProps = VehicleModalProps | RefuelModalProps | ExpenseModalProps;
 
 interface VehicleFormState {
   brand: string;
@@ -56,6 +77,14 @@ interface RefuelFormState {
   date: string;
   is_full_tank: boolean;
   station: string;
+  notes: string;
+}
+
+interface ExpenseFormState {
+  vehicle_id: string;
+  category: ExpenseInput['category'];
+  amount: string;
+  date: string;
   notes: string;
 }
 
@@ -98,12 +127,15 @@ function getTodayValue() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function getFallbackVehicleId(vehicles: Vehicle[]) {
+  return vehicles.find(vehicle => vehicle.is_active)?.id ?? vehicles[0]?.id ?? '';
+}
+
 function getInitialRefuelState(
   refuel: Refuel | null | undefined,
   vehicles: Vehicle[],
 ): RefuelFormState {
-  const fallbackVehicleId =
-    vehicles.find(vehicle => vehicle.is_active)?.id ?? vehicles[0]?.id ?? '';
+  const fallbackVehicleId = getFallbackVehicleId(vehicles);
 
   if (!refuel) {
     return {
@@ -129,6 +161,31 @@ function getInitialRefuelState(
     is_full_tank: refuel.is_full_tank,
     station: refuel.station ?? '',
     notes: refuel.notes ?? '',
+  };
+}
+
+function getInitialExpenseState(
+  expense: Expense | null | undefined,
+  vehicles: Vehicle[],
+): ExpenseFormState {
+  const fallbackVehicleId = getFallbackVehicleId(vehicles);
+
+  if (!expense) {
+    return {
+      vehicle_id: fallbackVehicleId,
+      category: 'Assicurazione',
+      amount: '',
+      date: getTodayValue(),
+      notes: '',
+    };
+  }
+
+  return {
+    vehicle_id: expense.vehicle_id,
+    category: expense.category,
+    amount: String(expense.amount),
+    date: expense.date,
+    notes: expense.notes ?? '',
   };
 }
 
@@ -711,16 +768,198 @@ function RefuelForm({
   );
 }
 
+function ExpenseForm({
+  uid,
+  mode,
+  expense,
+  vehicles,
+  onDelete,
+  onSubmit,
+}: Omit<ExpenseModalProps, 'entryType' | 'onClose'>) {
+  const [formState, setFormState] = useState<ExpenseFormState>(() =>
+    getInitialExpenseState(expense, vehicles),
+  );
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    setFormState(getInitialExpenseState(expense, vehicles));
+  }, [expense, vehicles]);
+
+  const updateField = <K extends keyof ExpenseFormState>(
+    key: K,
+    value: ExpenseFormState[K],
+  ) => {
+    setFormState(current => ({ ...current, [key]: value }));
+  };
+
+  const handleSubmit = async () => {
+    const amount = parsePositiveDecimal(formState.amount);
+
+    if (!formState.vehicle_id) {
+      setErrorMessage('Seleziona un veicolo.');
+      return;
+    }
+
+    if (amount === null || amount <= 0) {
+      setErrorMessage('Inserisci un importo valido.');
+      return;
+    }
+
+    if (!formState.date) {
+      setErrorMessage('Inserisci la data della spesa.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setErrorMessage(null);
+
+    try {
+      await onSubmit({
+        uid,
+        vehicle_id: formState.vehicle_id,
+        category: formState.category,
+        amount,
+        date: formState.date,
+        notes: formState.notes.trim() || null,
+      });
+    } catch (error) {
+      console.error('Failed to save expense', error);
+      setErrorMessage(getReadableDataError(error));
+      setIsSubmitting(false);
+      return;
+    }
+
+    setIsSubmitting(false);
+  };
+
+  return (
+    <>
+      <div className="flex-1 overflow-y-auto px-4 py-5">
+        <div className="space-y-5">
+          <label className={LABEL_CLASS_NAME}>
+            Veicolo
+            <select
+              value={formState.vehicle_id}
+              onChange={event => updateField('vehicle_id', event.target.value)}
+              className={INPUT_CLASS_NAME}
+              disabled={vehicles.length === 0}
+            >
+              {vehicles.map(vehicle => (
+                <option key={vehicle.id} value={vehicle.id}>
+                  {vehicle.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className={LABEL_CLASS_NAME}>
+            Categoria
+            <select
+              value={formState.category}
+              onChange={event =>
+                updateField('category', event.target.value as ExpenseInput['category'])
+              }
+              className={INPUT_CLASS_NAME}
+            >
+              {EXPENSE_CATEGORIES.map(option => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <div className="grid grid-cols-2 gap-3">
+            <label className={LABEL_CLASS_NAME}>
+              Importo
+              <input
+                type="text"
+                inputMode="decimal"
+                value={formState.amount}
+                onChange={event => updateField('amount', event.target.value)}
+                className={INPUT_CLASS_NAME}
+                placeholder="Es. 249.90"
+              />
+            </label>
+            <label className={LABEL_CLASS_NAME}>
+              Data
+              <input
+                type="date"
+                value={formState.date}
+                onChange={event => updateField('date', event.target.value)}
+                className={INPUT_CLASS_NAME}
+              />
+            </label>
+          </div>
+
+          <label className={LABEL_CLASS_NAME}>
+            Note
+            <textarea
+              value={formState.notes}
+              onChange={event => updateField('notes', event.target.value)}
+              className={`${INPUT_CLASS_NAME} min-h-28 resize-none`}
+              placeholder="Opzionale"
+            />
+          </label>
+
+          {errorMessage ? (
+            <p className="rounded-2xl border border-rose-400/25 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
+              {errorMessage}
+            </p>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="border-t border-white/8 px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-4">
+        <div className="flex items-center gap-3">
+          {mode === 'edit' && onDelete ? (
+            <button
+              type="button"
+              onClick={() => void onDelete()}
+              className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-rose-400/25 bg-rose-500/10 text-rose-200 transition hover:bg-rose-500/20"
+              title="Elimina spesa"
+            >
+              <Trash2 className="h-5 w-5" />
+            </button>
+          ) : null}
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={isSubmitting || vehicles.length === 0}
+            className="inline-flex flex-1 items-center justify-center rounded-2xl bg-amber-400 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isSubmitting
+              ? 'Salvataggio...'
+              : mode === 'create'
+                ? 'Salva spesa'
+                : 'Aggiorna spesa'}
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
 export function AddEntryModal(props: AddEntryModalProps) {
-  const modalLabel = props.entryType === 'vehicle' ? 'Veicolo' : 'Rifornimento';
+  const modalLabel =
+    props.entryType === 'vehicle'
+      ? 'Veicolo'
+      : props.entryType === 'refuel'
+        ? 'Rifornimento'
+        : 'Spesa';
   const modalTitle =
     props.entryType === 'vehicle'
       ? props.mode === 'create'
         ? 'Nuovo veicolo'
         : 'Modifica veicolo'
-      : props.mode === 'create'
-        ? 'Nuovo rifornimento'
-        : 'Modifica rifornimento';
+      : props.entryType === 'refuel'
+        ? props.mode === 'create'
+          ? 'Nuovo rifornimento'
+          : 'Modifica rifornimento'
+        : props.mode === 'create'
+          ? 'Nuova spesa'
+          : 'Modifica spesa';
 
   return (
     <div className="fixed inset-0 z-40">
@@ -740,8 +979,10 @@ export function AddEntryModal(props: AddEntryModalProps) {
               <h2 className="mt-1 flex items-center gap-2 text-xl font-semibold text-white">
                 {props.entryType === 'vehicle' ? (
                   <CarFront className="h-5 w-5 text-sky-300" />
-                ) : (
+                ) : props.entryType === 'refuel' ? (
                   <Droplets className="h-5 w-5 text-emerald-300" />
+                ) : (
+                  <CircleDollarSign className="h-5 w-5 text-amber-300" />
                 )}
                 {modalTitle}
               </h2>
@@ -764,11 +1005,20 @@ export function AddEntryModal(props: AddEntryModalProps) {
             onDelete={props.onDelete}
             onSubmit={props.onSubmit}
           />
-        ) : (
+        ) : props.entryType === 'refuel' ? (
           <RefuelForm
             uid={props.uid}
             mode={props.mode}
             refuel={props.refuel}
+            vehicles={props.vehicles}
+            onDelete={props.onDelete}
+            onSubmit={props.onSubmit}
+          />
+        ) : (
+          <ExpenseForm
+            uid={props.uid}
+            mode={props.mode}
+            expense={props.expense}
             vehicles={props.vehicles}
             onDelete={props.onDelete}
             onSubmit={props.onSubmit}
