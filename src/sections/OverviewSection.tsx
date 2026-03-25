@@ -164,12 +164,12 @@ export function OverviewSection({ vehicles, refuels, expenses }: OverviewSection
 
         <div className="rounded-[1.5rem] border border-white/8 bg-slate-900/80 p-4">
           <div className="flex items-center justify-between">
-            <span className="text-sm text-slate-400">Consumo stimato</span>
+            <span className="text-sm text-slate-400">Resa stimata</span>
             <Route className="h-4 w-4 text-sky-300" />
           </div>
           <p className="mt-3 text-lg font-semibold text-white">
             {latestComparableInsight
-              ? `${formatDecimal(latestComparableInsight.liters_per_100km ?? 0)} L/100`
+              ? `${formatDecimal(latestComparableInsight.km_per_liter ?? 0)} km/L`
               : '--'}
           </p>
         </div>
@@ -210,9 +210,9 @@ export function OverviewSection({ vehicles, refuels, expenses }: OverviewSection
                 </dd>
               </div>
               <div className="rounded-2xl bg-slate-950/65 px-3 py-2.5">
-                <dt className="text-xs uppercase tracking-[0.14em] text-slate-500">Media</dt>
+                <dt className="text-xs uppercase tracking-[0.14em] text-slate-500">Resa</dt>
                 <dd className="mt-1 font-medium text-white">
-                  {formatDecimal(refuelInsights.get(latestRefuel.id)?.liters_per_100km ?? 0)} L/100
+                  {formatDecimal(refuelInsights.get(latestRefuel.id)?.km_per_liter ?? 0)} km/L
                 </dd>
               </div>
               <div className="rounded-2xl bg-slate-950/65 px-3 py-2.5">
@@ -259,7 +259,7 @@ export function OverviewSection({ vehicles, refuels, expenses }: OverviewSection
             {vehicleNameById.get(latestComparableRefuel.vehicle_id) || 'Veicolo'}
           </h3>
           <p className="mt-2 text-sm leading-6 text-slate-300">
-            {formatDate(latestComparableRefuel.date)} • {latestComparableInsight.distance_km?.toLocaleString('it-IT')} km • {formatDecimal(latestComparableInsight.liters_per_100km ?? 0)} L/100 • {formatRatioCurrency(latestComparableInsight.cost_per_km ?? 0)}
+            {formatDate(latestComparableRefuel.date)} • {latestComparableInsight.distance_km?.toLocaleString('it-IT')} km • {formatDecimal(latestComparableInsight.km_per_liter ?? 0)} km/L • {formatRatioCurrency(latestComparableInsight.cost_per_km ?? 0)}
           </p>
         </div>
       ) : null}

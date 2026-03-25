@@ -265,9 +265,9 @@ export function RefuelsSection({
               </dd>
             </div>
             <div className="rounded-2xl bg-slate-950/60 px-3 py-2.5">
-              <dt className="text-xs uppercase tracking-[0.14em] text-slate-500">Consumo</dt>
+              <dt className="text-xs uppercase tracking-[0.14em] text-slate-500">Resa</dt>
               <dd className="mt-1 font-medium text-white">
-                {formatDecimal(latestComparableInsight.liters_per_100km ?? 0)} L/100
+                {formatDecimal(latestComparableInsight.km_per_liter ?? 0)} km/L
               </dd>
             </div>
             <div className="rounded-2xl bg-slate-950/60 px-3 py-2.5">
@@ -379,9 +379,9 @@ export function RefuelsSection({
                   {hasValidEstimate ? (
                     <>
                       <div className="rounded-2xl bg-slate-900/70 px-3 py-2.5">
-                        <dt className="text-xs uppercase tracking-[0.14em] text-slate-500">Media</dt>
+                        <dt className="text-xs uppercase tracking-[0.14em] text-slate-500">Resa</dt>
                         <dd className="mt-1 font-medium text-white">
-                          {formatDecimal(refuelInsight.liters_per_100km ?? 0)} L/100
+                          {formatDecimal(refuelInsight.km_per_liter ?? 0)} km/L
                         </dd>
                       </div>
                       <div className="rounded-2xl bg-slate-900/70 px-3 py-2.5">
@@ -395,7 +395,7 @@ export function RefuelsSection({
                 </dl>
                 {!hasValidEstimate ? (
                   <p className="mt-3 text-xs leading-5 text-slate-400">
-                    Per stimare consumi e costo/km servono due pieni consecutivi con contachilometri crescente.
+                    Per stimare resa e costo/km servono due pieni consecutivi con contachilometri crescente.
                   </p>
                 ) : null}
               </div>
