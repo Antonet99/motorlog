@@ -10,11 +10,10 @@ export function ExpensesSection() {
         </p>
       </div>
       <h2 className="mt-3 text-2xl font-semibold text-white">
-        Categorie e cronologia arrivano nel prossimo slice.
+        Nessuna spesa registrata.
       </h2>
       <p className="mt-2 text-sm leading-6 text-slate-300">
-        Le cards e i filtri rimangono volutamente fuori da questa consegna per
-        mantenere il diff piccolo e testabile.
+        Qui troverai assicurazione, bollo, manutenzione e tutte le altre uscite del veicolo.
       </p>
     </section>
   );

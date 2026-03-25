@@ -1,25 +1,28 @@
-import { initializeApp } from 'firebase/app';
+import { getApp, getApps, initializeApp } from 'firebase/app';
 import {
+  connectAuthEmulator,
   getAuth,
   getRedirectResult,
   GoogleAuthProvider,
+  signInWithEmailAndPassword,
+  signInWithPopup,
   signInWithRedirect,
   signOut,
 } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { connectFirestoreEmulator, getFirestore } from 'firebase/firestore';
+import {
+  authEmulatorUrl,
+  firebaseConfig,
+  firestoreEmulatorHost,
+  firestoreEmulatorPort,
+  isUsingFirebaseEmulators,
+  localAuthEmail,
+  localAuthPassword,
+} from './env';
 
 export const ALLOWED_EMAIL = 'antoniobaio90@gmail.com';
 export const ACCESS_DENIED_MESSAGE =
   'Accesso consentito solo a antoniobaio90@gmail.com.';
-
-function getRequiredEnv(key: keyof ImportMetaEnv) {
-  const value = import.meta.env[key];
-  if (!value) {
-    throw new Error(`Missing required Firebase environment variable: ${key}`);
-  }
-
-  return value;
-}
 
 function mapAuthErrorMessage(error: unknown) {
   if (!(error instanceof Error)) {
@@ -32,6 +35,10 @@ function mapAuthErrorMessage(error: unknown) {
 
   const authError = error as Error & { code?: string };
 
+  if (!authError.code) {
+    return error.message || "Errore durante l'accesso. Riprova.";
+  }
+
   if (authError.code === 'auth/operation-not-allowed') {
     return 'Google Sign-In non ancora abilitato nel progetto Firebase.';
   }
@@ -40,32 +47,81 @@ function mapAuthErrorMessage(error: unknown) {
     return 'Dominio non autorizzato per il login Firebase.';
   }
 
+  if (authError.code === 'auth/popup-blocked') {
+    return 'Il browser ha bloccato la finestra Google. Consenti i popup e riprova.';
+  }
+
+  if (authError.code === 'auth/popup-closed-by-user') {
+    return 'Accesso interrotto prima del completamento.';
+  }
+
+  if (
+    isUsingFirebaseEmulators &&
+    authError.code === 'auth/network-request-failed'
+  ) {
+    return 'Emulator Firebase non raggiungibile. Avvia auth e firestore in locale.';
+  }
+
+  if (
+    isUsingFirebaseEmulators &&
+    authError.code === 'auth/invalid-credential'
+  ) {
+    return 'Utente demo locale non pronto. Esegui il seed demo e riprova.';
+  }
+
   return "Errore durante l'accesso. Riprova.";
 }
 
-const firebaseConfig = {
-  apiKey: getRequiredEnv('VITE_FIREBASE_API_KEY'),
-  authDomain: getRequiredEnv('VITE_FIREBASE_AUTH_DOMAIN'),
-  projectId: getRequiredEnv('VITE_FIREBASE_PROJECT_ID'),
-  appId: getRequiredEnv('VITE_FIREBASE_APP_ID'),
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || undefined,
-  messagingSenderId:
-    import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || undefined,
-};
+declare global {
+  interface Window {
+    __motorlogEmulatorsConnected__?: boolean;
+  }
+}
 
-const app = initializeApp(firebaseConfig);
+const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
 export const auth = getAuth(app);
 export const db = getFirestore(app);
+
+if (isUsingFirebaseEmulators && !window.__motorlogEmulatorsConnected__) {
+  connectAuthEmulator(auth, authEmulatorUrl, { disableWarnings: true });
+  connectFirestoreEmulator(db, firestoreEmulatorHost, firestoreEmulatorPort);
+  window.__motorlogEmulatorsConnected__ = true;
+}
 
 const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });
 
 export async function signInWithGoogle() {
-  await signInWithRedirect(auth, googleProvider);
+  if (isUsingFirebaseEmulators) {
+    await ensureLocalSession();
+    return;
+  }
+
+  try {
+    const result = await signInWithPopup(auth, googleProvider);
+
+    if (result.user.email !== ALLOWED_EMAIL) {
+      await signOut(auth);
+      throw new Error(ACCESS_DENIED_MESSAGE);
+    }
+  } catch (error) {
+    const authError = error as Error & { code?: string };
+
+    if (authError.code === 'auth/operation-not-supported-in-this-environment') {
+      await signInWithRedirect(auth, googleProvider);
+      return;
+    }
+
+    throw error;
+  }
 }
 
 export async function consumeRedirectResult() {
+  if (isUsingFirebaseEmulators) {
+    return null;
+  }
+
   try {
     const result = await getRedirectResult(auth);
 
@@ -79,6 +135,39 @@ export async function consumeRedirectResult() {
     }
 
     return null;
+  } catch (error) {
+    throw new Error(mapAuthErrorMessage(error));
+  }
+}
+
+export async function ensureLocalSession() {
+  if (!isUsingFirebaseEmulators) {
+    return null;
+  }
+
+  if (!localAuthPassword) {
+    throw new Error(
+      'Password locale mancante. Configura VITE_LOCAL_AUTH_PASSWORD per l’emulator mode.',
+    );
+  }
+
+  if (auth.currentUser?.email === localAuthEmail) {
+    return auth.currentUser;
+  }
+
+  try {
+    const result = await signInWithEmailAndPassword(
+      auth,
+      localAuthEmail,
+      localAuthPassword,
+    );
+
+    if (result.user.email !== ALLOWED_EMAIL) {
+      await signOut(auth);
+      throw new Error(ACCESS_DENIED_MESSAGE);
+    }
+
+    return result.user;
   } catch (error) {
     throw new Error(mapAuthErrorMessage(error));
   }

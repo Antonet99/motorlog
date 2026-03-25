@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { User } from 'firebase/auth';
 import { onAuthStateChanged } from 'firebase/auth';
 import {
@@ -12,19 +12,26 @@ import {
 } from 'lucide-react';
 import { AddEntryModal } from './components/AddEntryModal';
 import { AuthScreen } from './components/AuthScreen';
+import { isUsingFirebaseEmulators, localAuthEmail } from './lib/env';
 import {
   ACCESS_DENIED_MESSAGE,
   ALLOWED_EMAIL,
   auth,
   consumeRedirectResult,
+  ensureLocalSession,
   getReadableAuthError,
   logOut,
   signInWithGoogle,
 } from './lib/firebase';
 import {
+  createRefuel,
   createVehicle,
+  deleteRefuel,
   deleteVehicle,
+  getReadableDataError,
+  subscribeToRefuels,
   subscribeToVehicles,
+  updateRefuel,
   updateVehicle,
 } from './lib/data';
 import { ExpensesSection } from './sections/ExpensesSection';
@@ -34,20 +41,26 @@ import { VehiclesSection } from './sections/VehiclesSection';
 import type {
   AppTab,
   QuickAddType,
+  Refuel,
+  RefuelInput,
   Vehicle,
   VehicleInput,
 } from './types/domain';
 
 type ToastTone = 'success' | 'error' | 'info';
 
+type ModalState =
+  | { kind: 'vehicle'; mode: 'create' | 'edit'; vehicle?: Vehicle | null }
+  | { kind: 'refuel'; mode: 'create' | 'edit'; refuel?: Refuel | null }
+  | null;
+
+type PendingDeletion =
+  | { kind: 'vehicle'; vehicle: Vehicle; timeoutId: number }
+  | { kind: 'refuel'; refuel: Refuel; timeoutId: number };
+
 interface ToastState {
   message: string;
   tone: ToastTone;
-}
-
-interface PendingDeletion {
-  vehicle: Vehicle;
-  timeoutId: number;
 }
 
 const NAV_ITEMS: Array<{
@@ -112,15 +125,15 @@ function getSectionCopy(activeTab: AppTab) {
     return {
       eyebrow: 'Garage',
       title: 'Veicoli',
-      description: 'Ancore principali dell’app e base del primo slice utile.',
+      description: 'Auto e moto salvate nel tuo garage personale.',
     };
   }
 
   if (activeTab === 'refuels') {
     return {
-      eyebrow: 'Cronologia',
+      eyebrow: 'Carburante',
       title: 'Rifornimenti',
-      description: 'Shell pronta per il prossimo step di tracking carburante.',
+      description: 'Litri, costo e contachilometri degli ultimi movimenti.',
     };
   }
 
@@ -128,39 +141,32 @@ function getSectionCopy(activeTab: AppTab) {
     return {
       eyebrow: 'Costi',
       title: 'Spese',
-      description: 'Placeholder già integrato nella shell mobile-first.',
+      description: 'Assicurazione, bollo, manutenzione e altre uscite.',
     };
   }
 
   return {
-    eyebrow: 'Dashboard',
-    title: 'Riepilogo',
-    description: 'Base del progetto pronta, con Firebase e CRUD veicoli.',
+    eyebrow: 'Riepilogo',
+    title: 'Dashboard',
+    description: "Garage, rifornimenti recenti e costo carburante a colpo d'occhio.",
   };
 }
 
-function getToastClassName(tone: ToastTone) {
-  if (tone === 'error') {
-    return 'bg-rose-500 text-white';
-  }
-
-  if (tone === 'info') {
-    return 'bg-slate-100 text-slate-950';
-  }
-
-  return 'bg-emerald-500 text-slate-950';
-}
-
 export default function App() {
+  const hasAttemptedLocalSession = useRef(false);
   const [user, setUser] = useState<User | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
+  const [isPreparingLocalMode, setIsPreparingLocalMode] = useState(
+    isUsingFirebaseEmulators,
+  );
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [refuels, setRefuels] = useState<Refuel[]>([]);
   const [isVehiclesReady, setIsVehiclesReady] = useState(false);
+  const [isRefuelsReady, setIsRefuelsReady] = useState(false);
   const [activeTab, setActiveTab] = useState<AppTab>('overview');
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
-  const [isVehicleModalOpen, setIsVehicleModalOpen] = useState(false);
-  const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
+  const [modalState, setModalState] = useState<ModalState>(null);
   const [toast, setToast] = useState<ToastState | null>(null);
   const [pendingDeletion, setPendingDeletion] = useState<PendingDeletion | null>(
     null,
@@ -193,13 +199,43 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!isAuthReady || !user) {
-      setVehicles([]);
-      setIsVehiclesReady(false);
+    if (!isUsingFirebaseEmulators || !isAuthReady) {
       return;
     }
 
-    const unsubscribe = subscribeToVehicles(
+    if (user) {
+      setIsPreparingLocalMode(false);
+      return;
+    }
+
+    if (hasAttemptedLocalSession.current) {
+      setIsPreparingLocalMode(false);
+      return;
+    }
+
+    hasAttemptedLocalSession.current = true;
+    setIsPreparingLocalMode(true);
+
+    void ensureLocalSession()
+      .catch(error => {
+        console.error('Failed to bootstrap local session', error);
+        setAuthError(getReadableAuthError(error));
+      })
+      .finally(() => {
+        setIsPreparingLocalMode(false);
+      });
+  }, [isAuthReady, user]);
+
+  useEffect(() => {
+    if (!isAuthReady || !user) {
+      setVehicles([]);
+      setRefuels([]);
+      setIsVehiclesReady(false);
+      setIsRefuelsReady(false);
+      return;
+    }
+
+    const unsubscribeVehicles = subscribeToVehicles(
       user.uid,
       nextVehicles => {
         setVehicles(nextVehicles);
@@ -208,13 +244,31 @@ export default function App() {
       error => {
         console.error('Error fetching vehicles', error);
         setToast({
-          message: 'Errore durante il caricamento dei veicoli.',
+          message: getReadableDataError(error),
           tone: 'error',
         });
       },
     );
 
-    return () => unsubscribe();
+    const unsubscribeRefuels = subscribeToRefuels(
+      user.uid,
+      nextRefuels => {
+        setRefuels(nextRefuels);
+        setIsRefuelsReady(true);
+      },
+      error => {
+        console.error('Error fetching refuels', error);
+        setToast({
+          message: getReadableDataError(error),
+          tone: 'error',
+        });
+      },
+    );
+
+    return () => {
+      unsubscribeVehicles();
+      unsubscribeRefuels();
+    };
   }, [isAuthReady, user]);
 
   useEffect(() => {
@@ -238,8 +292,7 @@ export default function App() {
   }, [pendingDeletion]);
 
   useEffect(() => {
-    const shouldLockScroll =
-      isQuickAddOpen || isVehicleModalOpen || editingVehicle !== null;
+    const shouldLockScroll = isQuickAddOpen || modalState !== null;
 
     if (!shouldLockScroll) {
       document.body.style.overflow = '';
@@ -250,18 +303,21 @@ export default function App() {
     return () => {
       document.body.style.overflow = '';
     };
-  }, [editingVehicle, isQuickAddOpen, isVehicleModalOpen]);
+  }, [isQuickAddOpen, modalState]);
 
   const visibleVehicles =
-    pendingDeletion === null
-      ? vehicles
-      : vehicles.filter(vehicle => vehicle.id !== pendingDeletion.vehicle.id);
+    pendingDeletion?.kind === 'vehicle'
+      ? vehicles.filter(vehicle => vehicle.id !== pendingDeletion.vehicle.id)
+      : vehicles;
+  const visibleRefuels =
+    pendingDeletion?.kind === 'refuel'
+      ? refuels.filter(refuel => refuel.id !== pendingDeletion.refuel.id)
+      : refuels;
   const activeVehicle = visibleVehicles.find(vehicle => vehicle.is_active) ?? null;
   const sectionCopy = useMemo(() => getSectionCopy(activeTab), [activeTab]);
 
-  const closeVehicleModal = () => {
-    setEditingVehicle(null);
-    setIsVehicleModalOpen(false);
+  const closeModal = () => {
+    setModalState(null);
   };
 
   const handleSignIn = async () => {
@@ -280,50 +336,119 @@ export default function App() {
     await logOut();
   };
 
+  const handleRetryLocalMode = async () => {
+    setAuthError(null);
+    setIsPreparingLocalMode(true);
+
+    try {
+      await ensureLocalSession();
+    } catch (error) {
+      console.error('Failed to reconnect local mode', error);
+      setAuthError(getReadableAuthError(error));
+    } finally {
+      setIsPreparingLocalMode(false);
+    }
+  };
+
+  const openCreateVehicleModal = () => {
+    setModalState({ kind: 'vehicle', mode: 'create' });
+    setActiveTab('vehicles');
+  };
+
+  const openCreateRefuelModal = () => {
+    if (visibleVehicles.length === 0) {
+      setToast({
+        message: 'Aggiungi prima un veicolo.',
+        tone: 'info',
+      });
+      return;
+    }
+
+    setModalState({ kind: 'refuel', mode: 'create' });
+    setActiveTab('refuels');
+  };
+
   const handleCreateVehicle = async (input: VehicleInput) => {
     await createVehicle(input);
-    setIsVehicleModalOpen(false);
+    setModalState(null);
     setActiveTab('vehicles');
     setToast({ message: 'Veicolo salvato.', tone: 'success' });
   };
 
   const handleUpdateVehicle = async (input: VehicleInput) => {
-    if (!editingVehicle) {
+    if (modalState?.kind !== 'vehicle' || modalState.mode !== 'edit' || !modalState.vehicle) {
       return;
     }
 
-    await updateVehicle(editingVehicle.id, input);
-    setEditingVehicle(null);
+    await updateVehicle(modalState.vehicle.id, input);
+    setModalState(null);
     setToast({ message: 'Veicolo aggiornato.', tone: 'success' });
   };
 
-  const commitDeletion = async (vehicle: Vehicle) => {
+  const handleCreateRefuel = async (input: RefuelInput) => {
+    await createRefuel(input);
+    setModalState(null);
+    setActiveTab('refuels');
+    setToast({ message: 'Rifornimento salvato.', tone: 'success' });
+  };
+
+  const handleUpdateRefuel = async (input: RefuelInput) => {
+    if (modalState?.kind !== 'refuel' || modalState.mode !== 'edit' || !modalState.refuel) {
+      return;
+    }
+
+    await updateRefuel(modalState.refuel.id, input);
+    setModalState(null);
+    setToast({ message: 'Rifornimento aggiornato.', tone: 'success' });
+  };
+
+  const commitDeletion = async (deletion: PendingDeletion) => {
     try {
-      await deleteVehicle(vehicle.uid, vehicle.id);
-      setToast({ message: 'Veicolo eliminato.', tone: 'info' });
+      if (deletion.kind === 'vehicle') {
+        await deleteVehicle(deletion.vehicle.uid, deletion.vehicle.id);
+        setToast({ message: 'Veicolo eliminato.', tone: 'info' });
+      } else {
+        await deleteRefuel(deletion.refuel.uid, deletion.refuel.id);
+        setToast({ message: 'Rifornimento eliminato.', tone: 'info' });
+      }
     } catch (error) {
-      console.error('Failed to delete vehicle', error);
-      setToast({ message: 'Errore durante la cancellazione.', tone: 'error' });
+      console.error('Failed to delete entry', error);
+      setToast({ message: getReadableDataError(error), tone: 'error' });
     } finally {
       setPendingDeletion(current =>
-        current?.vehicle.id === vehicle.id ? null : current,
+        current?.timeoutId === deletion.timeoutId ? null : current,
       );
     }
   };
 
-  const handleDeleteVehicle = async (vehicle: Vehicle) => {
+  const scheduleDeletion = async (nextDeletion: PendingDeletion) => {
     if (pendingDeletion) {
       window.clearTimeout(pendingDeletion.timeoutId);
-      await commitDeletion(pendingDeletion.vehicle);
+      await commitDeletion(pendingDeletion);
     }
 
+    setToast(null);
+    setPendingDeletion(nextDeletion);
+  };
+
+  const handleDeleteVehicle = async (vehicle: Vehicle) => {
+    setModalState(null);
+
     const timeoutId = window.setTimeout(() => {
-      void commitDeletion(vehicle);
+      void commitDeletion({ kind: 'vehicle', vehicle, timeoutId });
     }, 4200);
 
-    setEditingVehicle(null);
-    setToast(null);
-    setPendingDeletion({ vehicle, timeoutId });
+    await scheduleDeletion({ kind: 'vehicle', vehicle, timeoutId });
+  };
+
+  const handleDeleteRefuel = async (refuel: Refuel) => {
+    setModalState(null);
+
+    const timeoutId = window.setTimeout(() => {
+      void commitDeletion({ kind: 'refuel', refuel, timeoutId });
+    }, 4200);
+
+    await scheduleDeletion({ kind: 'refuel', refuel, timeoutId });
   };
 
   const handleUndoDelete = () => {
@@ -340,30 +465,75 @@ export default function App() {
     setIsQuickAddOpen(false);
 
     if (type === 'vehicle') {
-      setEditingVehicle(null);
-      setIsVehicleModalOpen(true);
-      setActiveTab('vehicles');
+      openCreateVehicleModal();
+      return;
+    }
+
+    if (type === 'refuel') {
+      openCreateRefuelModal();
       return;
     }
 
     setToast({
-      message:
-        type === 'refuel'
-          ? 'Rifornimenti in arrivo nel prossimo slice.'
-          : 'Spese in arrivo nel prossimo slice.',
+      message: 'Le spese arrivano nel prossimo slice.',
       tone: 'info',
     });
   };
 
-  if (!isAuthReady) {
+  if (!isAuthReady || (isUsingFirebaseEmulators && !user && isPreparingLocalMode)) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-950">
-        <div className="h-12 w-12 animate-spin rounded-full border-2 border-slate-800 border-t-sky-400" />
+        <div className="flex flex-col items-center gap-4 px-6 text-center">
+          <div className="h-12 w-12 animate-spin rounded-full border-2 border-slate-800 border-t-sky-400" />
+          {isUsingFirebaseEmulators ? (
+            <div className="space-y-1">
+              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-sky-300">
+                Demo locale
+              </p>
+              <p className="text-sm text-slate-400">
+                Connessione agli emulatori Firebase in corso.
+              </p>
+            </div>
+          ) : null}
+        </div>
       </div>
     );
   }
 
   if (!user) {
+    if (isUsingFirebaseEmulators) {
+      return (
+        <div className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top,_rgba(14,165,233,0.1),_transparent_36%),linear-gradient(180deg,_#020617_0%,_#0f172a_48%,_#111827_100%)] px-6 py-10 text-slate-50">
+          <div className="w-full max-w-sm rounded-[2rem] border border-white/8 bg-slate-950/78 p-6 shadow-2xl backdrop-blur">
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-sky-300">
+              Demo locale
+            </p>
+            <h1 className="mt-3 text-3xl font-semibold tracking-tight text-white">
+              Motorlog in locale
+            </h1>
+            <p className="mt-3 text-sm leading-6 text-slate-300">
+              Modalita rapida con Firebase Emulator Suite. Nessun login Google:
+              viene usato l'account demo autorizzato{' '}
+              <span className="font-medium text-slate-100">{localAuthEmail}</span>.
+            </p>
+            <p className="mt-4 rounded-2xl border border-white/8 bg-white/4 px-4 py-3 text-sm text-slate-400">
+              {authError ||
+                "Avvia auth e firestore in locale, poi lancia il seed demo per entrare direttamente nell'app."}
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                void handleRetryLocalMode();
+              }}
+              className="mt-5 inline-flex w-full items-center justify-center rounded-full bg-sky-500 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-sky-400"
+            >
+              Riprova connessione locale
+            </button>
+          </div>
+        </div>
+      );
+    }
+
     return <AuthScreen onSignIn={handleSignIn} errorMessage={authError} />;
   }
 
@@ -379,12 +549,20 @@ export default function App() {
             <h1 className="mt-1 text-2xl font-semibold tracking-tight text-white">
               {sectionCopy.title}
             </h1>
-            <p className="mt-1 truncate text-sm text-slate-400">
-              {sectionCopy.description}
-            </p>
+            <p className="mt-1 text-sm text-slate-400">{sectionCopy.description}</p>
           </div>
 
           <div className="flex items-center gap-2">
+            {isUsingFirebaseEmulators ? (
+              <div className="rounded-full border border-sky-400/20 bg-sky-500/12 px-3 py-2 text-right">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-sky-300">
+                  Demo locale
+                </p>
+                <p className="max-w-[7.5rem] truncate text-sm font-medium text-sky-100">
+                  Emulator
+                </p>
+              </div>
+            ) : null}
             {activeVehicle ? (
               <div className="hidden rounded-full border border-white/10 bg-white/5 px-3 py-2 text-right sm:block">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
@@ -395,14 +573,16 @@ export default function App() {
                 </p>
               </div>
             ) : null}
-            <button
-              type="button"
-              onClick={handleLogOut}
-              className="rounded-full border border-white/10 bg-white/5 p-2.5 text-slate-300 transition hover:bg-white/10"
-              title="Esci"
-            >
-              <LogOut className="h-4 w-4" />
-            </button>
+            {isUsingFirebaseEmulators ? null : (
+              <button
+                type="button"
+                onClick={handleLogOut}
+                className="rounded-full border border-white/10 bg-white/5 p-2.5 text-slate-300 transition hover:bg-white/10"
+                title="Esci"
+              >
+                <LogOut className="h-4 w-4" />
+              </button>
+            )}
           </div>
         </div>
       </header>
@@ -410,19 +590,26 @@ export default function App() {
       <main className="mx-auto max-w-md space-y-4 px-4 py-4">
         <div key={activeTab} className="section-enter">
           {activeTab === 'overview' ? (
-            <OverviewSection vehicles={visibleVehicles} />
+            <OverviewSection vehicles={visibleVehicles} refuels={visibleRefuels} />
           ) : activeTab === 'vehicles' ? (
             <VehiclesSection
               vehicles={visibleVehicles}
               isLoading={!isVehiclesReady}
-              onAddVehicle={() => {
-                setEditingVehicle(null);
-                setIsVehicleModalOpen(true);
-              }}
-              onEditVehicle={vehicle => setEditingVehicle(vehicle)}
+              onAddVehicle={openCreateVehicleModal}
+              onEditVehicle={vehicle =>
+                setModalState({ kind: 'vehicle', mode: 'edit', vehicle })
+              }
             />
           ) : activeTab === 'refuels' ? (
-            <RefuelsSection />
+            <RefuelsSection
+              vehicles={visibleVehicles}
+              refuels={visibleRefuels}
+              isLoading={!isRefuelsReady}
+              onAddRefuel={openCreateRefuelModal}
+              onEditRefuel={refuel =>
+                setModalState({ kind: 'refuel', mode: 'edit', refuel })
+              }
+            />
           ) : (
             <ExpensesSection />
           )}
@@ -485,30 +672,51 @@ export default function App() {
         </>
       ) : null}
 
-      {isVehicleModalOpen ? (
+      {modalState?.kind === 'vehicle' ? (
         <AddEntryModal
+          entryType="vehicle"
           uid={user.uid}
-          mode="create"
-          onClose={closeVehicleModal}
-          onSubmit={handleCreateVehicle}
+          mode={modalState.mode}
+          vehicle={modalState.vehicle}
+          onClose={closeModal}
+          onDelete={
+            modalState.mode === 'edit' && modalState.vehicle
+              ? () => handleDeleteVehicle(modalState.vehicle)
+              : undefined
+          }
+          onSubmit={
+            modalState.mode === 'create' ? handleCreateVehicle : handleUpdateVehicle
+          }
         />
       ) : null}
 
-      {editingVehicle ? (
+      {modalState?.kind === 'refuel' ? (
         <AddEntryModal
+          entryType="refuel"
           uid={user.uid}
-          mode="edit"
-          vehicle={editingVehicle}
-          onClose={closeVehicleModal}
-          onDelete={() => handleDeleteVehicle(editingVehicle)}
-          onSubmit={handleUpdateVehicle}
+          mode={modalState.mode}
+          refuel={modalState.refuel}
+          vehicles={visibleVehicles}
+          onClose={closeModal}
+          onDelete={
+            modalState.mode === 'edit' && modalState.refuel
+              ? () => handleDeleteRefuel(modalState.refuel)
+              : undefined
+          }
+          onSubmit={
+            modalState.mode === 'create' ? handleCreateRefuel : handleUpdateRefuel
+          }
         />
       ) : null}
 
       {pendingDeletion ? (
         <div className="fixed inset-x-4 bottom-[calc(6.25rem+env(safe-area-inset-bottom))] z-40 mx-auto max-w-md">
           <div className="toast-enter flex items-center justify-between gap-3 rounded-3xl border border-white/8 bg-slate-900 px-4 py-3 text-sm text-white shadow-2xl">
-            <span className="min-w-0 truncate">Veicolo rimosso.</span>
+            <span className="min-w-0 truncate">
+              {pendingDeletion.kind === 'vehicle'
+                ? 'Veicolo rimosso.'
+                : 'Rifornimento rimosso.'}
+            </span>
             <button
               type="button"
               onClick={handleUndoDelete}
@@ -518,12 +726,18 @@ export default function App() {
             </button>
           </div>
         </div>
-      ) : toast ? (
-        <div className="pointer-events-none fixed inset-x-4 bottom-[calc(6.25rem+env(safe-area-inset-bottom))] z-40 mx-auto max-w-md">
+      ) : null}
+
+      {toast ? (
+        <div className="fixed inset-x-4 top-[calc(1rem+env(safe-area-inset-top))] z-40 mx-auto max-w-md">
           <div
-            className={`toast-enter rounded-3xl px-4 py-3 text-sm font-semibold shadow-2xl ${getToastClassName(
-              toast.tone,
-            )}`}
+            className={`toast-enter rounded-3xl px-4 py-3 text-sm font-medium shadow-2xl ${
+              toast.tone === 'error'
+                ? 'bg-rose-500 text-white'
+                : toast.tone === 'info'
+                  ? 'bg-slate-100 text-slate-950'
+                  : 'bg-emerald-500 text-slate-950'
+            }`}
           >
             {toast.message}
           </div>

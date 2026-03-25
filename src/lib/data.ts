@@ -7,11 +7,14 @@ import {
   onSnapshot,
   orderBy,
   query,
+  where,
   writeBatch,
 } from 'firebase/firestore';
 import { db } from './firebase';
 import type {
   FuelType,
+  Refuel,
+  RefuelInput,
   Vehicle,
   VehicleInput,
   VehicleType,
@@ -30,6 +33,10 @@ const FUEL_TYPES: FuelType[] = [
 
 function getVehiclesCollection(uid: string) {
   return collection(db, `users/${uid}/vehicles`);
+}
+
+function getRefuelsCollection(uid: string) {
+  return collection(db, `users/${uid}/refuels`);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -61,12 +68,26 @@ function asOptionalInteger(value: unknown) {
   return null;
 }
 
+function asPositiveInteger(value: unknown) {
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 0) {
+    return null;
+  }
+
+  return value;
+}
+
 function asPositiveNumber(value: unknown) {
   if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
     return null;
   }
 
-  return Number(value.toFixed(2));
+  return Number(value.toFixed(3));
+}
+
+function asDayString(value: unknown) {
+  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)
+    ? value
+    : null;
 }
 
 function buildVehicleName(brand: string, model: string) {
@@ -94,6 +115,28 @@ function sanitizeVehicleInput(input: VehicleInput) {
     fuel_type: input.fuel_type,
     is_active: input.is_active,
     name: buildVehicleName(brand, model),
+  };
+}
+
+function sanitizeRefuelInput(input: RefuelInput) {
+  const liters = Number(input.liters.toFixed(3));
+  const pricePerLiter = Number(input.price_per_liter.toFixed(3));
+  const totalCost =
+    input.total_cost === null
+      ? Number((liters * pricePerLiter).toFixed(2))
+      : Number(input.total_cost.toFixed(2));
+
+  return {
+    uid: input.uid,
+    vehicle_id: input.vehicle_id,
+    liters,
+    total_cost: totalCost,
+    price_per_liter: pricePerLiter,
+    odometer_km: input.odometer_km,
+    date: input.date,
+    is_full_tank: input.is_full_tank,
+    station: asOptionalString(input.station),
+    notes: asOptionalString(input.notes),
   };
 }
 
@@ -142,10 +185,87 @@ function parseVehicle(id: string, value: unknown): Vehicle | null {
   };
 }
 
+function parseRefuel(id: string, value: unknown): Refuel | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const liters = asPositiveNumber(value.liters);
+  const totalCost = asPositiveNumber(value.total_cost);
+  const pricePerLiter = asPositiveNumber(value.price_per_liter);
+  const odometerKm = asPositiveInteger(value.odometer_km);
+  const date = asDayString(value.date);
+
+  if (
+    typeof value.uid !== 'string' ||
+    typeof value.vehicle_id !== 'string' ||
+    typeof value.is_full_tank !== 'boolean' ||
+    typeof value.created_at !== 'string' ||
+    typeof value.updated_at !== 'string' ||
+    liters === null ||
+    totalCost === null ||
+    pricePerLiter === null ||
+    odometerKm === null ||
+    date === null
+  ) {
+    return null;
+  }
+
+  return {
+    id,
+    uid: value.uid,
+    vehicle_id: value.vehicle_id,
+    liters,
+    total_cost: totalCost,
+    price_per_liter: pricePerLiter,
+    odometer_km: odometerKm,
+    date,
+    is_full_tank: value.is_full_tank,
+    station: asOptionalString(value.station),
+    notes: asOptionalString(value.notes),
+    created_at: value.created_at,
+    updated_at: value.updated_at,
+  };
+}
+
 function chooseFallbackVehicle(vehicles: Vehicle[], excludeId: string) {
   return vehicles
     .filter(vehicle => vehicle.id !== excludeId)
     .sort((left, right) => right.updated_at.localeCompare(left.updated_at))[0] ?? null;
+}
+
+async function ensureVehicleExists(uid: string, vehicleId: string) {
+  const vehicleSnapshot = await getDoc(doc(getVehiclesCollection(uid), vehicleId));
+
+  if (!vehicleSnapshot.exists()) {
+    throw new Error('Veicolo collegato non trovato.');
+  }
+}
+
+export function getReadableDataError(error: unknown) {
+  if (!(error instanceof Error)) {
+    return 'Operazione non riuscita. Riprova.';
+  }
+
+  const firestoreError = error as Error & { code?: string };
+
+  if (!firestoreError.code) {
+    return error.message || 'Operazione non riuscita. Riprova.';
+  }
+
+  if (firestoreError.code === 'permission-denied') {
+    return 'Permessi Firestore insufficienti per questa operazione.';
+  }
+
+  if (firestoreError.code === 'failed-precondition') {
+    return 'Configurazione Firestore incompleta o indice mancante.';
+  }
+
+  if (firestoreError.code === 'unavailable') {
+    return 'Firestore non raggiungibile. Controlla la connessione e riprova.';
+  }
+
+  return 'Operazione non riuscita. Riprova.';
 }
 
 export function subscribeToVehicles(
@@ -163,6 +283,28 @@ export function subscribeToVehicles(
         .filter((vehicle): vehicle is Vehicle => vehicle !== null);
 
       onData(nextVehicles);
+    },
+    error => {
+      onError?.(error);
+    },
+  );
+}
+
+export function subscribeToRefuels(
+  uid: string,
+  onData: (refuels: Refuel[]) => void,
+  onError?: (error: Error) => void,
+) {
+  const refuelsQuery = query(getRefuelsCollection(uid), orderBy('date', 'desc'));
+
+  return onSnapshot(
+    refuelsQuery,
+    snapshot => {
+      const nextRefuels = snapshot.docs
+        .map(document => parseRefuel(document.id, document.data()))
+        .filter((refuel): refuel is Refuel => refuel !== null);
+
+      onData(nextRefuels);
     },
     error => {
       onError?.(error);
@@ -257,10 +399,15 @@ export async function updateVehicle(vehicleId: string, input: VehicleInput) {
 
 export async function deleteVehicle(uid: string, vehicleId: string) {
   const vehicleRef = doc(getVehiclesCollection(uid), vehicleId);
-  const [vehicleSnapshot, vehiclesSnapshot] = await Promise.all([
+  const [vehicleSnapshot, vehiclesSnapshot, linkedRefuelsSnapshot] = await Promise.all([
     getDoc(vehicleRef),
     getDocs(query(getVehiclesCollection(uid), orderBy('updated_at', 'desc'))),
+    getDocs(query(getRefuelsCollection(uid), where('vehicle_id', '==', vehicleId))),
   ]);
+
+  if (!linkedRefuelsSnapshot.empty) {
+    throw new Error('Elimina prima i rifornimenti collegati al veicolo.');
+  }
 
   if (!vehicleSnapshot.exists()) {
     return;
@@ -290,4 +437,50 @@ export async function deleteVehicle(uid: string, vehicleId: string) {
   }
 
   await batch.commit();
+}
+
+export async function createRefuel(input: RefuelInput) {
+  await ensureVehicleExists(input.uid, input.vehicle_id);
+
+  const now = new Date().toISOString();
+  const refuelRef = doc(getRefuelsCollection(input.uid));
+  const normalizedInput = sanitizeRefuelInput(input);
+
+  await writeBatch(db)
+    .set(refuelRef, {
+      ...normalizedInput,
+      created_at: now,
+      updated_at: now,
+    })
+    .commit();
+}
+
+export async function updateRefuel(refuelId: string, input: RefuelInput) {
+  await ensureVehicleExists(input.uid, input.vehicle_id);
+
+  const refuelRef = doc(getRefuelsCollection(input.uid), refuelId);
+  const refuelSnapshot = await getDoc(refuelRef);
+
+  if (!refuelSnapshot.exists()) {
+    throw new Error('Rifornimento non trovato.');
+  }
+
+  const currentRefuel = parseRefuel(refuelSnapshot.id, refuelSnapshot.data());
+
+  if (!currentRefuel) {
+    throw new Error('Dati rifornimento non validi.');
+  }
+
+  await writeBatch(db)
+    .update(refuelRef, {
+      ...sanitizeRefuelInput(input),
+      uid: currentRefuel.uid,
+      created_at: currentRefuel.created_at,
+      updated_at: new Date().toISOString(),
+    })
+    .commit();
+}
+
+export async function deleteRefuel(uid: string, refuelId: string) {
+  await deleteDoc(doc(getRefuelsCollection(uid), refuelId));
 }

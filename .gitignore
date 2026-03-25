@@ -1,5 +1,7 @@
 node_modules
 dist
 .env.local
+.env.emulator.local
 .firebase
 .DS_Store
+firestore-debug.log

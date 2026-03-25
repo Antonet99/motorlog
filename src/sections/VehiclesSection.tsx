@@ -34,11 +34,10 @@ export function VehiclesSection({
           Nessun veicolo
         </p>
         <h2 className="mt-3 text-2xl font-semibold text-white">
-          Inizia dal mezzo che usi di piu.
+          Aggiungi il primo mezzo del garage.
         </h2>
         <p className="mt-2 text-sm leading-6 text-slate-300">
-          Crea il primo veicolo per sbloccare la base dati che useranno anche
-          rifornimenti e spese.
+          Salva auto e moto con targa, motorizzazione e serbatoio per averli sempre pronti nei movimenti futuri.
         </p>
         <button
           type="button"
