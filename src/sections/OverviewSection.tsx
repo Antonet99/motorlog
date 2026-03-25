@@ -13,7 +13,6 @@ interface OverviewSectionProps {
   vehicles: Vehicle[];
   refuels: Refuel[];
   expenses: Expense[];
-  isShowingAllVehiclesData: boolean;
 }
 
 const currencyFormatter = new Intl.NumberFormat('it-IT', {
@@ -59,19 +58,14 @@ function formatDate(value: string) {
   return dateFormatter.format(new Date(`${value}T12:00:00`));
 }
 
-export function OverviewSection({
-  vehicles,
-  refuels,
-  expenses,
-  isShowingAllVehiclesData,
-}: OverviewSectionProps) {
+export function OverviewSection({ vehicles, refuels, expenses }: OverviewSectionProps) {
   const sortedRefuels = sortRefuelsNewestFirst(refuels);
   const sortedExpenses = sortExpensesNewestFirst(expenses);
   const refuelInsights = buildRefuelInsights(sortedRefuels);
   const activeVehicle = vehicles.find(vehicle => vehicle.is_active) ?? null;
   const vehiclesById = new Map(vehicles.map(vehicle => [vehicle.id, vehicle]));
   const monthKey = getCurrentMonthKey();
-  const monthLabel = monthFormatter.format(new Date()).toUpperCase();
+  const monthLabel = monthFormatter.format(new Date());
   const refuelsThisMonth = sortedRefuels.filter(refuel => isInMonth(refuel.date, monthKey));
   const expensesThisMonth = sortedExpenses.filter(expense => isInMonth(expense.date, monthKey));
   const latestRefuel = sortedRefuels[0] ?? null;
@@ -93,8 +87,8 @@ export function OverviewSection({
 
   return (
     <section className="space-y-3">
-      <div className="rounded-[1.55rem] border border-white/8 bg-[linear-gradient(145deg,_rgba(14,165,233,0.11),_rgba(15,23,42,0.92))] p-4 shadow-[0_18px_52px_rgba(2,6,23,0.3)]">
-        <div className="inline-flex items-center gap-2 rounded-full border border-sky-400/20 bg-sky-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-200">
+      <div className="rounded-[1.35rem] border border-white/8 bg-[linear-gradient(145deg,_rgba(14,165,233,0.11),_rgba(15,23,42,0.92))] p-3.5 shadow-[0_18px_52px_rgba(2,6,23,0.3)]">
+        <div className="inline-flex items-center gap-2 rounded-full border border-sky-400/20 bg-sky-500/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-sky-200">
           <Gauge className="h-3.5 w-3.5" />
           Veicolo attivo
         </div>
@@ -108,12 +102,12 @@ export function OverviewSection({
             />
           ) : null}
           <div className="min-w-0">
-            <h2 className="truncate text-xl font-semibold text-white">
+            <h2 className="truncate text-lg font-semibold text-white">
               {activeVehicle ? activeVehicle.name : 'Nessun veicolo attivo'}
             </h2>
             <p className="mt-1 text-sm leading-6 text-slate-300">
               {activeVehicle
-                ? `QUESTO ${monthLabel} hai registrato ${refuelsThisMonth.length} riforniment${refuelsThisMonth.length === 1 ? 'o' : 'i'} e ${expensesThisMonth.length} spes${expensesThisMonth.length === 1 ? 'a' : 'e'} ${isShowingAllVehiclesData ? 'nel garage.' : 'sul veicolo attivo.'}`
+                ? `Questo ${monthLabel} hai registrato ${refuelsThisMonth.length} riforniment${refuelsThisMonth.length === 1 ? 'o' : 'i'} e ${expensesThisMonth.length} spes${expensesThisMonth.length === 1 ? 'a' : 'e'} sul veicolo attivo.`
                 : 'Aggiungi un veicolo per iniziare a tracciare movimenti e costi.'}
             </p>
           </div>
@@ -121,10 +115,10 @@ export function OverviewSection({
 
         {activeVehicle ? (
           <div className="mt-3 flex flex-wrap gap-2">
-            <span className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-medium text-emerald-100">
+            <span className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-2.5 py-1 text-[10px] font-medium text-emerald-100">
               Carburante mensile {formatCurrency(monthlyFuelSpend)}
             </span>
-            <span className="rounded-full border border-amber-400/20 bg-amber-500/10 px-3 py-1 text-[11px] font-medium text-amber-100">
+            <span className="rounded-full border border-amber-400/20 bg-amber-500/10 px-2.5 py-1 text-[10px] font-medium text-amber-100">
               Spese mensili {formatCurrency(monthlyExpenses)}
             </span>
           </div>
@@ -132,40 +126,40 @@ export function OverviewSection({
       </div>
 
       <div className="grid grid-cols-2 gap-2.5">
-        <div className="rounded-[1.4rem] border border-white/8 bg-slate-900/80 p-3.5">
+        <div className="rounded-[1.25rem] border border-white/8 bg-slate-900/80 p-3">
           <div className="flex items-center justify-between">
-            <span className="text-sm text-slate-400">Movimenti mensili</span>
+            <span className="text-[11px] text-slate-400">Movimenti mensili</span>
             <Gauge className="h-4 w-4 text-sky-300" />
           </div>
-          <p className="mt-3 text-2xl font-semibold text-white">{monthlyMovements}</p>
+          <p className="mt-2.5 text-lg font-semibold text-white">{monthlyMovements}</p>
         </div>
 
-        <div className="rounded-[1.4rem] border border-white/8 bg-slate-900/80 p-3.5">
+        <div className="rounded-[1.25rem] border border-white/8 bg-slate-900/80 p-3">
           <div className="flex items-center justify-between">
-            <span className="text-sm text-slate-400">Carburante mensile</span>
+            <span className="text-[11px] text-slate-400">Carburante mensile</span>
             <Fuel className="h-4 w-4 text-emerald-300" />
           </div>
-          <p className="mt-3 text-base font-semibold text-white">
+          <p className="mt-2.5 text-sm font-semibold text-white">
             {monthlyFuelSpend > 0 ? formatCurrency(monthlyFuelSpend) : '--'}
           </p>
         </div>
 
-        <div className="rounded-[1.4rem] border border-white/8 bg-slate-900/80 p-3.5">
+        <div className="rounded-[1.25rem] border border-white/8 bg-slate-900/80 p-3">
           <div className="flex items-center justify-between">
-            <span className="text-sm text-slate-400">Spese mensili</span>
+            <span className="text-[11px] text-slate-400">Spese mensili</span>
             <ReceiptText className="h-4 w-4 text-amber-300" />
           </div>
-          <p className="mt-3 text-base font-semibold text-white">
+          <p className="mt-2.5 text-sm font-semibold text-white">
             {monthlyExpenses > 0 ? formatCurrency(monthlyExpenses) : '--'}
           </p>
         </div>
 
-        <div className="rounded-[1.4rem] border border-white/8 bg-slate-900/80 p-3.5">
+        <div className="rounded-[1.25rem] border border-white/8 bg-slate-900/80 p-3">
           <div className="flex items-center justify-between">
-            <span className="text-sm text-slate-400">Consumo effettivo</span>
+            <span className="text-[11px] text-slate-400">Consumo effettivo</span>
             <Route className="h-4 w-4 text-sky-300" />
           </div>
-          <p className="mt-3 text-base font-semibold text-white">
+          <p className="mt-2.5 text-sm font-semibold text-white">
             {latestComparableInsight
               ? `${formatDecimal(latestComparableInsight.km_per_liter ?? 0)} km/L`
               : '--'}
@@ -173,20 +167,20 @@ export function OverviewSection({
         </div>
       </div>
 
-      <article className="rounded-[1.4rem] border border-white/8 bg-slate-900/80 p-4">
+      <article className="rounded-[1.25rem] border border-white/8 bg-slate-900/80 p-3.5">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">
               Ultimo rifornimento
             </p>
-            <h3 className="mt-2 text-base font-semibold text-white">
+            <h3 className="mt-1.5 text-base font-semibold text-white">
               {latestRefuel
                 ? vehiclesById.get(latestRefuel.vehicle_id)?.name || 'Veicolo'
                 : 'Ancora nessun rifornimento'}
             </h3>
           </div>
           {latestRefuel ? (
-            <span className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-medium text-emerald-100">
+            <span className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-2.5 py-1 text-[10px] font-medium text-emerald-100">
               {latestRefuel.is_full_tank ? 'Pieno' : 'Parziale'}
             </span>
           ) : null}
@@ -199,21 +193,21 @@ export function OverviewSection({
         </p>
 
         {latestRefuel && refuelInsights.get(latestRefuel.id)?.has_valid_full_to_full ? (
-          <div className="mt-3 grid grid-cols-3 gap-2.5 text-sm text-slate-300">
+          <div className="mt-3 grid grid-cols-3 gap-2 text-sm text-slate-300">
             <div className="rounded-2xl bg-slate-950/65 px-3 py-2.5">
-              <dt className="text-[11px] uppercase tracking-[0.14em] text-slate-500">Km</dt>
+              <dt className="text-[10px] uppercase tracking-[0.14em] text-slate-500">Km</dt>
               <dd className="mt-1 font-medium text-white">
                 {refuelInsights.get(latestRefuel.id)?.distance_km?.toLocaleString('it-IT')} km
               </dd>
             </div>
             <div className="rounded-2xl bg-slate-950/65 px-3 py-2.5">
-              <dt className="text-[11px] uppercase tracking-[0.14em] text-slate-500">Consumo</dt>
+              <dt className="text-[10px] uppercase tracking-[0.14em] text-slate-500">Consumo</dt>
               <dd className="mt-1 font-medium text-white">
                 {formatDecimal(refuelInsights.get(latestRefuel.id)?.km_per_liter ?? 0)} km/L
               </dd>
             </div>
             <div className="rounded-2xl bg-slate-950/65 px-3 py-2.5">
-              <dt className="text-[11px] uppercase tracking-[0.14em] text-slate-500">€/km</dt>
+              <dt className="text-[10px] uppercase tracking-[0.14em] text-slate-500">€/km</dt>
               <dd className="mt-1 font-medium text-white">
                 {formatRatioCurrency(refuelInsights.get(latestRefuel.id)?.cost_per_km ?? 0)}
               </dd>
@@ -222,18 +216,18 @@ export function OverviewSection({
         ) : null}
       </article>
 
-      <article className="rounded-[1.4rem] border border-white/8 bg-slate-900/80 p-4">
+      <article className="rounded-[1.25rem] border border-white/8 bg-slate-900/80 p-3.5">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">
               Ultima spesa
             </p>
-            <h3 className="mt-2 text-base font-semibold text-white">
+            <h3 className="mt-1.5 text-base font-semibold text-white">
               {latestExpense ? latestExpense.category : 'Ancora nessuna spesa'}
             </h3>
           </div>
           {latestExpense ? (
-            <span className="rounded-full border border-amber-400/20 bg-amber-500/10 px-3 py-1 text-[11px] font-medium text-amber-100">
+            <span className="rounded-full border border-amber-400/20 bg-amber-500/10 px-2.5 py-1 text-[10px] font-medium text-amber-100">
               {vehiclesById.get(latestExpense.vehicle_id)?.name || 'Veicolo'}
             </span>
           ) : null}
@@ -247,11 +241,11 @@ export function OverviewSection({
       </article>
 
       {latestComparableRefuel && latestComparableInsight ? (
-        <div className="rounded-[1.4rem] border border-sky-400/15 bg-sky-500/8 p-4">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-200">
+        <div className="rounded-[1.25rem] border border-sky-400/15 bg-sky-500/8 p-3.5">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-sky-200">
             Ultimo pieno compatibile
           </p>
-          <h3 className="mt-2 text-base font-semibold text-white">
+          <h3 className="mt-1.5 text-base font-semibold text-white">
             {vehiclesById.get(latestComparableRefuel.vehicle_id)?.name || 'Veicolo'}
           </h3>
           <p className="mt-2 text-sm leading-6 text-slate-300">

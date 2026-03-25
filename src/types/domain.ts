@@ -10,6 +10,14 @@ export const FUEL_TYPES = [
   'Elettrico',
 ] as const;
 
+export const FUEL_TYPE_OPTIONS = [
+  'Benzina',
+  'Diesel',
+  'Ibrido benzina',
+  'Ibrido diesel',
+  'Elettrico',
+] as const;
+
 export const EXPENSE_CATEGORIES = [
   'Rata',
   'Assicurazione',

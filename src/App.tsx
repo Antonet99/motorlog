@@ -134,7 +134,7 @@ const QUICK_ADD_OPTIONS: Array<{
 const SECTION_COPY: Record<AppTab, { title: string; subtitle: string }> = {
   overview: {
     title: 'Riepilogo',
-    subtitle: "Garage, carburante e costi in un colpo d'occhio.",
+    subtitle: "Garage, carburante e costi a colpo d'occhio.",
   },
   vehicles: {
     title: 'Veicoli',
@@ -142,11 +142,11 @@ const SECTION_COPY: Record<AppTab, { title: string; subtitle: string }> = {
   },
   refuels: {
     title: 'Rifornimenti',
-    subtitle: 'Litri, costo e contachilometri dei tuoi pieni.',
+    subtitle: 'Litri, costo e contachilometri.',
   },
   expenses: {
     title: 'Spese',
-    subtitle: 'Assicurazione, bollo e altre uscite del garage.',
+    subtitle: 'Assicurazione, bollo e altre uscite.',
   },
 };
 
@@ -171,7 +171,6 @@ export default function App() {
   const [pendingDeletion, setPendingDeletion] = useState<PendingDeletion | null>(
     null,
   );
-  const [isShowingAllVehiclesData, setIsShowingAllVehiclesData] = useState(false);
   const [isSwitchingVehicle, setIsSwitchingVehicle] = useState(false);
 
   useEffect(() => {
@@ -339,29 +338,13 @@ export default function App() {
       : expenses;
   const activeVehicle =
     visibleVehicles.find(vehicle => vehicle.is_active) ?? visibleVehicles[0] ?? null;
+  const filteredRefuels = activeVehicle
+    ? visibleRefuels.filter(refuel => refuel.vehicle_id === activeVehicle.id)
+    : visibleRefuels;
+  const filteredExpenses = activeVehicle
+    ? visibleExpenses.filter(expense => expense.vehicle_id === activeVehicle.id)
+    : visibleExpenses;
   const sectionCopy = SECTION_COPY[activeTab];
-
-  useEffect(() => {
-    if (visibleVehicles.length <= 1 && isShowingAllVehiclesData) {
-      setIsShowingAllVehiclesData(false);
-    }
-  }, [isShowingAllVehiclesData, visibleVehicles.length]);
-
-  const filteredRefuels = useMemo(() => {
-    if (isShowingAllVehiclesData || !activeVehicle) {
-      return visibleRefuels;
-    }
-
-    return visibleRefuels.filter(refuel => refuel.vehicle_id === activeVehicle.id);
-  }, [activeVehicle, isShowingAllVehiclesData, visibleRefuels]);
-
-  const filteredExpenses = useMemo(() => {
-    if (isShowingAllVehiclesData || !activeVehicle) {
-      return visibleExpenses;
-    }
-
-    return visibleExpenses.filter(expense => expense.vehicle_id === activeVehicle.id);
-  }, [activeVehicle, isShowingAllVehiclesData, visibleExpenses]);
 
   const closeModal = () => {
     setModalState(null);
@@ -398,12 +381,7 @@ export default function App() {
   };
 
   const handleSelectActiveVehicle = async (vehicleId: string) => {
-    if (!user || !vehicleId) {
-      return;
-    }
-
-    if (vehicleId === activeVehicle?.id) {
-      setIsShowingAllVehiclesData(false);
+    if (!user || !vehicleId || vehicleId === activeVehicle?.id) {
       return;
     }
 
@@ -411,7 +389,6 @@ export default function App() {
 
     try {
       await setActiveVehicle(user.uid, vehicleId);
-      setIsShowingAllVehiclesData(false);
       setToast({ message: 'Veicolo attivo aggiornato.', tone: 'success' });
     } catch (error) {
       console.error('Failed to switch active vehicle', error);
@@ -649,35 +626,35 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-[100dvh] bg-[radial-gradient(circle_at_top,_rgba(14,165,233,0.08),_transparent_34%),linear-gradient(180deg,_#020617_0%,_#0f172a_48%,_#111827_100%)] pb-[calc(6.85rem+env(safe-area-inset-bottom))] text-slate-50">
+    <div className="min-h-[100dvh] bg-[radial-gradient(circle_at_top,_rgba(14,165,233,0.08),_transparent_34%),linear-gradient(180deg,_#020617_0%,_#0f172a_48%,_#111827_100%)] pb-[calc(5.5rem+env(safe-area-inset-bottom))] text-slate-50">
       <header className="sticky top-0 z-20 border-b border-white/6 bg-slate-950/88 backdrop-blur">
         <div className="h-[env(safe-area-inset-top)]" />
-        <div className="mx-auto max-w-md px-4 pb-3.5 pt-3">
+        <div className="mx-auto max-w-md px-4 pb-2.5 pt-2.5">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-500">
                 Motorlog
               </p>
-              <h1 className="mt-1 text-[1.65rem] font-semibold tracking-tight text-white">
+              <h1 className="mt-1 text-[1.35rem] font-semibold tracking-tight text-white">
                 {sectionCopy.title}
               </h1>
-              <p className="mt-1 text-sm text-slate-400">{sectionCopy.subtitle}</p>
+              <p className="mt-0.5 text-xs text-slate-400">{sectionCopy.subtitle}</p>
             </div>
 
             <div className="flex items-center gap-2">
               {isUsingFirebaseEmulators ? (
-                <div className="rounded-full border border-sky-400/20 bg-sky-500/12 px-3 py-1.5 text-right">
+                <div className="rounded-full border border-sky-400/20 bg-sky-500/12 px-2.5 py-1.5 text-right">
                   <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-sky-300">
-                    Demo locale
+                    Demo
                   </p>
-                  <p className="text-xs font-medium text-sky-100">Emulator</p>
+                  <p className="text-[11px] font-medium text-sky-100">Emulator</p>
                 </div>
               ) : null}
               {isUsingFirebaseEmulators ? null : (
                 <button
                   type="button"
                   onClick={handleLogOut}
-                  className="rounded-full border border-white/10 bg-white/5 p-2.5 text-slate-300 transition hover:bg-white/10"
+                  className="rounded-full border border-white/10 bg-white/5 p-2 text-slate-300 transition hover:bg-white/10"
                   title="Esci"
                 >
                   <LogOut className="h-4 w-4" />
@@ -687,73 +664,54 @@ export default function App() {
           </div>
 
           {visibleVehicles.length > 0 ? (
-            <div className="mt-3 flex items-center gap-2">
-              <div className="flex min-w-0 flex-1 items-center gap-2 rounded-[1.35rem] border border-white/8 bg-white/5 px-3 py-2.5">
-                {activeVehicle ? (
-                  <BrandLogo
-                    brand={activeVehicle.brand}
-                    vehicleType={activeVehicle.vehicle_type}
-                    size="sm"
-                  />
-                ) : (
-                  <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-white/8 bg-slate-950/70 text-slate-300">
-                    <CarFront className="h-4 w-4" />
-                  </span>
-                )}
-                <div className="relative min-w-0 flex-1">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-                    Veicolo selezionato
-                  </p>
-                  <select
-                    value={activeVehicle?.id ?? ''}
-                    onChange={event => {
-                      void handleSelectActiveVehicle(event.target.value);
-                    }}
-                    disabled={isSwitchingVehicle}
-                    className="mt-1 w-full appearance-none bg-transparent pr-6 text-sm font-medium text-white outline-none disabled:cursor-not-allowed disabled:text-slate-500"
-                  >
-                    {visibleVehicles.map(vehicle => (
-                      <option
-                        key={vehicle.id}
-                        value={vehicle.id}
-                        className="bg-slate-950 text-white"
-                      >
-                        {vehicle.name}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown className="pointer-events-none absolute right-0 top-[1.1rem] h-4 w-4 text-slate-500" />
-                </div>
-              </div>
-
-              {visibleVehicles.length > 1 || isShowingAllVehiclesData ? (
-                <button
-                  type="button"
-                  onClick={() =>
-                    setIsShowingAllVehiclesData(current => !current)
-                  }
-                  className={`shrink-0 rounded-[1.15rem] border px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.12em] transition ${
-                    isShowingAllVehiclesData
-                      ? 'border-sky-400/20 bg-sky-500/12 text-sky-100'
-                      : 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10'
-                  }`}
+            <div className="mt-2.5 flex items-center gap-2 rounded-[1.15rem] border border-white/8 bg-white/5 px-3 py-2">
+              {activeVehicle ? (
+                <BrandLogo
+                  brand={activeVehicle.brand}
+                  vehicleType={activeVehicle.vehicle_type}
+                  size="sm"
+                />
+              ) : (
+                <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-white/8 bg-slate-950/70 text-slate-300">
+                  <CarFront className="h-4 w-4" />
+                </span>
+              )}
+              <div className="relative min-w-0 flex-1">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                  Veicolo selezionato
+                </p>
+                <select
+                  value={activeVehicle?.id ?? ''}
+                  onChange={event => {
+                    void handleSelectActiveVehicle(event.target.value);
+                  }}
+                  disabled={isSwitchingVehicle}
+                  className="mt-0.5 w-full appearance-none bg-transparent pr-6 text-sm font-medium text-white outline-none disabled:cursor-not-allowed disabled:text-slate-500"
                 >
-                  {isShowingAllVehiclesData ? 'Solo attivo' : 'Mostra tutto'}
-                </button>
-              ) : null}
+                  {visibleVehicles.map(vehicle => (
+                    <option
+                      key={vehicle.id}
+                      value={vehicle.id}
+                      className="bg-slate-950 text-white"
+                    >
+                      {vehicle.name}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-0 top-[0.95rem] h-4 w-4 text-slate-500" />
+              </div>
             </div>
           ) : null}
         </div>
       </header>
 
-      <main className="mx-auto max-w-md space-y-3.5 px-4 py-4">
+      <main className="mx-auto max-w-md space-y-3 px-4 py-3.5">
         <div key={activeTab} className="section-enter">
           {activeTab === 'overview' ? (
             <OverviewSection
               vehicles={visibleVehicles}
               refuels={filteredRefuels}
               expenses={filteredExpenses}
-              isShowingAllVehiclesData={isShowingAllVehiclesData}
             />
           ) : activeTab === 'vehicles' ? (
             <VehiclesSection
@@ -788,8 +746,8 @@ export default function App() {
         </div>
       </main>
 
-      <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-white/8 bg-slate-950/92 backdrop-blur">
-        <div className="mx-auto flex max-w-md items-center justify-between gap-1 px-3 pb-[calc(0.7rem+env(safe-area-inset-bottom))] pt-2.5">
+      <nav className="fixed inset-x-0 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-20 px-4">
+        <div className="mx-auto flex max-w-md items-center justify-between gap-1 rounded-[1.7rem] border border-white/8 bg-slate-950/92 px-2 py-2 shadow-[0_22px_50px_rgba(2,6,23,0.45)] backdrop-blur">
           {NAV_ITEMS.map(item => {
             const Icon = item.icon;
             const isActive = item.tab === activeTab;
@@ -799,7 +757,7 @@ export default function App() {
                 key={item.tab}
                 type="button"
                 onClick={() => setActiveTab(item.tab)}
-                className={`flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-[1rem] px-1.5 py-2 text-[11px] font-medium transition ${
+                className={`flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-[1rem] px-1.5 py-1.5 text-[10px] font-medium transition ${
                   isActive
                     ? item.activeClassName
                     : 'text-slate-500 hover:bg-white/5 hover:text-slate-200'
@@ -816,7 +774,7 @@ export default function App() {
       <button
         type="button"
         onClick={() => setIsQuickAddOpen(current => !current)}
-        className="fixed bottom-[calc(5.35rem+env(safe-area-inset-bottom))] right-4 z-30 inline-flex h-12 w-12 items-center justify-center rounded-full bg-sky-500 text-slate-950 shadow-[0_18px_40px_rgba(14,165,233,0.35)] transition hover:bg-sky-400 active:scale-[0.97]"
+        className="fixed bottom-[calc(4.85rem+env(safe-area-inset-bottom))] right-4 z-30 inline-flex h-11 w-11 items-center justify-center rounded-full bg-sky-500 text-slate-950 shadow-[0_18px_40px_rgba(14,165,233,0.35)] transition hover:bg-sky-400 active:scale-[0.97]"
       >
         {isQuickAddOpen ? <X className="h-5 w-5" /> : <Plus className="h-5 w-5" />}
       </button>
@@ -829,7 +787,7 @@ export default function App() {
             onClick={() => setIsQuickAddOpen(false)}
             className="quick-add-overlay z-20"
           />
-          <div className="quick-add-enter fixed bottom-[calc(9.2rem+env(safe-area-inset-bottom))] right-4 z-30 flex flex-col items-end gap-2">
+          <div className="quick-add-enter fixed bottom-[calc(8.4rem+env(safe-area-inset-bottom))] right-4 z-30 flex flex-col items-end gap-2">
             {QUICK_ADD_OPTIONS.map(option => (
               <button
                 key={option.type}

@@ -4,12 +4,16 @@ import {
   CarFront,
   CircleDollarSign,
   Droplets,
+  Search,
   Trash2,
   X,
 } from 'lucide-react';
+import { BrandLogo } from '../components/BrandLogo';
+import { getReadableDataError } from '../lib/data';
+import { BRAND_OPTIONS, getBrandOptionByLabel, getBrandSlug } from '../lib/logos';
 import {
   EXPENSE_CATEGORIES,
-  FUEL_TYPES,
+  FUEL_TYPE_OPTIONS,
   VEHICLE_TYPES,
   type Expense,
   type ExpenseInput,
@@ -19,7 +23,6 @@ import {
   type VehicleInput,
   type VehicleType,
 } from '../types/domain';
-import { getReadableDataError } from '../lib/data';
 
 type VehicleModalProps = {
   entryType: 'vehicle';
@@ -225,11 +228,16 @@ function VehicleForm({
   const [formState, setFormState] = useState<VehicleFormState>(() =>
     getInitialVehicleState(vehicle),
   );
+  const [brandQuery, setBrandQuery] = useState(vehicle?.brand ?? '');
+  const [isBrandMenuOpen, setIsBrandMenuOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    setFormState(getInitialVehicleState(vehicle));
+    const nextState = getInitialVehicleState(vehicle);
+    setFormState(nextState);
+    setBrandQuery(nextState.brand);
+    setIsBrandMenuOpen(false);
   }, [vehicle]);
 
   const updateField = <K extends keyof VehicleFormState>(
@@ -237,6 +245,44 @@ function VehicleForm({
     value: VehicleFormState[K],
   ) => {
     setFormState(current => ({ ...current, [key]: value }));
+  };
+
+  const brandOptions = useMemo(() => {
+    if (!formState.brand.trim()) {
+      return BRAND_OPTIONS;
+    }
+
+    const currentOption = getBrandOptionByLabel(formState.brand);
+
+    if (currentOption) {
+      return BRAND_OPTIONS;
+    }
+
+    return [
+      {
+        label: formState.brand,
+        slug: getBrandSlug(formState.brand),
+      },
+      ...BRAND_OPTIONS,
+    ];
+  }, [formState.brand]);
+
+  const filteredBrandOptions = useMemo(() => {
+    const normalizedQuery = brandQuery.trim().toLowerCase();
+
+    if (!normalizedQuery) {
+      return brandOptions.slice(0, 12);
+    }
+
+    return brandOptions
+      .filter(option => option.label.toLowerCase().includes(normalizedQuery))
+      .slice(0, 12);
+  }, [brandOptions, brandQuery]);
+
+  const selectBrand = (brandLabel: string) => {
+    updateField('brand', brandLabel);
+    setBrandQuery(brandLabel);
+    setIsBrandMenuOpen(false);
   };
 
   const handleSubmit = async () => {
@@ -320,13 +366,73 @@ function VehicleForm({
 
           <label className={LABEL_CLASS_NAME}>
             Marca
-            <input
-              type="text"
-              value={formState.brand}
-              onChange={event => updateField('brand', event.target.value)}
-              className={INPUT_CLASS_NAME}
-              placeholder="Es. BMW"
-            />
+            <div className="relative mt-2">
+              <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-slate-900 px-4 py-3 text-sm text-white transition focus-within:border-sky-400/50 focus-within:ring-2 focus-within:ring-sky-400/20">
+                {formState.brand ? (
+                  <BrandLogo
+                    brand={formState.brand}
+                    vehicleType={formState.vehicle_type}
+                    size="sm"
+                  />
+                ) : (
+                  <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-white/8 bg-slate-950/70 text-slate-400">
+                    <Search className="h-4 w-4" />
+                  </span>
+                )}
+                <input
+                  type="text"
+                  value={brandQuery}
+                  onFocus={() => setIsBrandMenuOpen(true)}
+                  onBlur={() => {
+                    window.setTimeout(() => {
+                      setIsBrandMenuOpen(false);
+                      setBrandQuery(formState.brand);
+                    }, 120);
+                  }}
+                  onChange={event => {
+                    setBrandQuery(event.target.value);
+                    setIsBrandMenuOpen(true);
+                  }}
+                  onKeyDown={event => {
+                    if (event.key === 'Enter' && filteredBrandOptions[0]) {
+                      event.preventDefault();
+                      selectBrand(filteredBrandOptions[0].label);
+                    }
+                  }}
+                  className="min-w-0 flex-1 bg-transparent text-sm text-white outline-none placeholder:text-slate-500"
+                  placeholder="Cerca marca"
+                />
+              </div>
+
+              {isBrandMenuOpen ? (
+                <div className="absolute inset-x-0 top-[calc(100%+0.5rem)] z-10 overflow-hidden rounded-[1.25rem] border border-white/10 bg-slate-950 shadow-[0_18px_48px_rgba(2,6,23,0.45)]">
+                  <div className="max-h-64 overflow-y-auto p-2">
+                    {filteredBrandOptions.length > 0 ? (
+                      filteredBrandOptions.map(option => (
+                        <button
+                          key={option.slug}
+                          type="button"
+                          onMouseDown={event => event.preventDefault()}
+                          onClick={() => selectBrand(option.label)}
+                          className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-sm text-slate-200 transition hover:bg-white/6"
+                        >
+                          <BrandLogo
+                            brand={option.label}
+                            vehicleType={formState.vehicle_type}
+                            size="sm"
+                          />
+                          <span className="truncate">{option.label}</span>
+                        </button>
+                      ))
+                    ) : (
+                      <p className="px-3 py-3 text-sm text-slate-400">
+                        Nessuna marca trovata nel dataset loghi.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ) : null}
+            </div>
           </label>
 
           <label className={LABEL_CLASS_NAME}>
@@ -402,7 +508,7 @@ function VehicleForm({
               />
             </label>
             <label className={LABEL_CLASS_NAME}>
-              Carburante
+              Alimentazione
               <select
                 value={formState.fuel_type}
                 onChange={event =>
@@ -413,7 +519,7 @@ function VehicleForm({
                 }
                 className={INPUT_CLASS_NAME}
               >
-                {FUEL_TYPES.map(option => (
+                {FUEL_TYPE_OPTIONS.map(option => (
                   <option key={option} value={option}>
                     {option}
                   </option>
@@ -421,7 +527,6 @@ function VehicleForm({
               </select>
             </label>
           </div>
-
 
           {errorMessage ? (
             <p className="rounded-2xl border border-rose-400/25 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">

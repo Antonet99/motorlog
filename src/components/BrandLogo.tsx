@@ -11,8 +11,8 @@ interface BrandLogoProps {
 
 const SIZE_CLASS_NAMES: Record<NonNullable<BrandLogoProps['size']>, string> = {
   sm: 'h-8 w-8 rounded-xl',
-  md: 'h-10 w-10 rounded-2xl',
-  lg: 'h-12 w-12 rounded-2xl',
+  md: 'h-9 w-9 rounded-2xl',
+  lg: 'h-11 w-11 rounded-2xl',
 };
 
 export function BrandLogo({ brand, vehicleType, size = 'md' }: BrandLogoProps) {

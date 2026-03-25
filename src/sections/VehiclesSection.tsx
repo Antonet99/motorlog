@@ -26,7 +26,7 @@ export function VehiclesSection({
 }: VehiclesSectionProps) {
   if (isLoading) {
     return (
-      <section className="rounded-[1.4rem] border border-white/8 bg-slate-900/80 p-4 text-sm text-slate-300">
+      <section className="rounded-[1.25rem] border border-white/8 bg-slate-900/80 p-3.5 text-sm text-slate-300">
         Caricamento veicoli...
       </section>
     );
@@ -34,15 +34,15 @@ export function VehiclesSection({
 
   if (vehicles.length === 0) {
     return (
-      <section className="rounded-[1.55rem] border border-dashed border-sky-400/25 bg-sky-500/8 p-4">
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-200">
+      <section className="rounded-[1.3rem] border border-dashed border-sky-400/25 bg-sky-500/8 p-3.5">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-sky-200">
           Nessun veicolo
         </p>
-        <h2 className="mt-2 text-xl font-semibold text-white">
+        <h2 className="mt-2 text-lg font-semibold text-white">
           Aggiungi il primo mezzo del garage.
         </h2>
         <p className="mt-2 text-sm leading-6 text-slate-300">
-          Salva auto e moto con targa, motorizzazione e serbatoio per averli sempre pronti nei movimenti futuri.
+          Salva auto e moto con targa, alimentazione e serbatoio per averli pronti nei movimenti futuri.
         </p>
         <button
           type="button"
@@ -58,11 +58,11 @@ export function VehiclesSection({
 
   return (
     <section className="space-y-3">
-      <div className="rounded-[1.4rem] border border-white/8 bg-slate-900/80 p-4">
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+      <div className="rounded-[1.25rem] border border-white/8 bg-slate-900/80 p-3.5">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">
           Veicoli
         </p>
-        <h2 className="mt-2 text-xl font-semibold text-white">
+        <h2 className="mt-1.5 text-lg font-semibold text-white">
           {getVehicleCountLabel(vehicles.length)}
         </h2>
       </div>
@@ -70,14 +70,16 @@ export function VehiclesSection({
       {vehicles.map(vehicle => (
         <article
           key={vehicle.id}
-          className="rounded-[1.5rem] border border-white/8 bg-slate-900/85 p-3.5 shadow-[0_14px_32px_rgba(2,6,23,0.24)]"
+          className="relative overflow-hidden rounded-[1.35rem] border border-white/8 bg-slate-900/85 px-3.5 py-3.5 shadow-[0_14px_32px_rgba(2,6,23,0.24)]"
         >
-          <div className="flex items-start justify-between gap-3">
+          <span className="absolute bottom-3 left-0 top-3 w-1 rounded-r-full bg-sky-400/85" />
+
+          <div className="flex items-start justify-between gap-3 pl-1">
             <div className="min-w-0 flex items-center gap-3">
               <BrandLogo
                 brand={vehicle.brand}
                 vehicleType={vehicle.vehicle_type}
-                size="md"
+                size="sm"
               />
               <div className="min-w-0">
                 <h3 className="truncate text-base font-semibold text-white">
@@ -98,29 +100,29 @@ export function VehiclesSection({
             </button>
           </div>
 
-          <div className="mt-3 flex flex-wrap gap-2">
-            <span className="rounded-full border border-sky-400/20 bg-sky-500/10 px-3 py-1 text-[11px] font-medium text-sky-100">
+          <div className="mt-3 flex flex-wrap gap-2 pl-1">
+            <span className="rounded-full border border-sky-400/20 bg-sky-500/10 px-2.5 py-1 text-[10px] font-medium text-sky-100">
               {vehicle.vehicle_type}
             </span>
-            <span className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-medium text-emerald-100">
+            <span className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-2.5 py-1 text-[10px] font-medium text-emerald-100">
               {vehicle.fuel_type}
             </span>
             {vehicle.is_active ? (
-              <span className="rounded-full border border-white/12 bg-white/7 px-3 py-1 text-[11px] font-medium text-white">
+              <span className="rounded-full border border-white/12 bg-white/7 px-2.5 py-1 text-[10px] font-medium text-white">
                 Attivo
               </span>
             ) : null}
           </div>
 
-          <dl className="mt-3 grid grid-cols-2 gap-2.5 text-sm text-slate-300">
+          <dl className="mt-3 grid grid-cols-2 gap-2 text-sm text-slate-300 pl-1">
             <div className="rounded-2xl bg-slate-950/65 px-3 py-2.5">
-              <dt className="text-[11px] uppercase tracking-[0.14em] text-slate-500">
+              <dt className="text-[10px] uppercase tracking-[0.14em] text-slate-500">
                 Targa
               </dt>
               <dd className="mt-1 font-medium text-white">{vehicle.plate}</dd>
             </div>
             <div className="rounded-2xl bg-slate-950/65 px-3 py-2.5">
-              <dt className="text-[11px] uppercase tracking-[0.14em] text-slate-500">
+              <dt className="text-[10px] uppercase tracking-[0.14em] text-slate-500">
                 Serbatoio
               </dt>
               <dd className="mt-1 font-medium text-white">
@@ -128,13 +130,13 @@ export function VehiclesSection({
               </dd>
             </div>
             <div className="rounded-2xl bg-slate-950/65 px-3 py-2.5">
-              <dt className="text-[11px] uppercase tracking-[0.14em] text-slate-500">
+              <dt className="text-[10px] uppercase tracking-[0.14em] text-slate-500">
                 Anno
               </dt>
               <dd className="mt-1 font-medium text-white">{vehicle.year ?? '--'}</dd>
             </div>
             <div className="rounded-2xl bg-slate-950/65 px-3 py-2.5">
-              <dt className="text-[11px] uppercase tracking-[0.14em] text-slate-500">
+              <dt className="text-[10px] uppercase tracking-[0.14em] text-slate-500">
                 Colore
               </dt>
               <dd className="mt-1 font-medium text-white">{vehicle.color ?? '--'}</dd>
