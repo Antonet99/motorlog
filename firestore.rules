@@ -1,0 +1,115 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAllowedUser() {
+      return isSignedIn() &&
+             request.auth.token.email == 'antoniobaio90@gmail.com' &&
+             request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isAllowedUser() && request.auth.uid == userId;
+    }
+
+    function isDateString(value) {
+      return value is string &&
+             value.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*Z$");
+    }
+
+    function isShortString(value, maxSize) {
+      return value is string && value.size() > 0 && value.size() <= maxSize;
+    }
+
+    function isOptionalString(value, maxSize) {
+      return value == null || (value is string && value.size() <= maxSize);
+    }
+
+    function isVehicleType(value) {
+      return value in ['Auto', 'Moto'];
+    }
+
+    function isFuelType(value) {
+      return value in [
+        'Benzina',
+        'Diesel',
+        'GPL',
+        'Metano',
+        'Ibrido benzina',
+        'Ibrido diesel',
+        'Elettrico'
+      ];
+    }
+
+    function isValidVehicle(data, userId) {
+      return data.keys().hasOnly([
+               'uid',
+               'name',
+               'nickname',
+               'vehicle_type',
+               'brand',
+               'model',
+               'plate',
+               'year',
+               'color',
+               'tank_capacity_liters',
+               'fuel_type',
+               'is_active',
+               'created_at',
+               'updated_at'
+             ]) &&
+             data.keys().hasAll([
+               'uid',
+               'name',
+               'vehicle_type',
+               'brand',
+               'model',
+               'plate',
+               'tank_capacity_liters',
+               'fuel_type',
+               'is_active',
+               'created_at',
+               'updated_at'
+             ]) &&
+             data.uid == userId &&
+             isShortString(data.name, 160) &&
+             isOptionalString(data.nickname, 80) &&
+             isVehicleType(data.vehicle_type) &&
+             isShortString(data.brand, 80) &&
+             isShortString(data.model, 120) &&
+             isShortString(data.plate, 24) &&
+             (data.year == null || (data.year is int && data.year >= 1900 && data.year <= 2100)) &&
+             isOptionalString(data.color, 50) &&
+             data.tank_capacity_liters is number &&
+             data.tank_capacity_liters > 0 &&
+             data.tank_capacity_liters < 150 &&
+             isFuelType(data.fuel_type) &&
+             data.is_active is bool &&
+             isDateString(data.created_at) &&
+             isDateString(data.updated_at);
+    }
+
+    match /users/{userId}/vehicles/{vehicleId} {
+      allow read, delete: if isOwner(userId);
+      allow create: if isOwner(userId) &&
+                      request.resource.data.uid == request.auth.uid &&
+                      isValidVehicle(request.resource.data, userId);
+      allow update: if isOwner(userId) &&
+                      resource.data.uid == request.auth.uid &&
+                      request.resource.data.uid == resource.data.uid &&
+                      isValidVehicle(request.resource.data, userId);
+    }
+
+    match /users/{userId}/refuels/{refuelId} {
+      allow read, write: if false;
+    }
+
+    match /users/{userId}/expenses/{expenseId} {
+      allow read, write: if false;
+    }
+  }
+}
