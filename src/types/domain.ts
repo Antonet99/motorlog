@@ -81,7 +81,8 @@ export interface RefuelInput {
   uid: string;
   vehicle_id: string;
   liters: number;
-  total_cost: number;
+  price_per_liter: number;
+  total_cost: number | null;
   odometer_km: number;
   date: string;
   is_full_tank: boolean;

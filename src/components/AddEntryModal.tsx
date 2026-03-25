@@ -50,6 +50,7 @@ interface VehicleFormState {
 interface RefuelFormState {
   vehicle_id: string;
   liters: string;
+  price_per_liter: string;
   total_cost: string;
   odometer_km: string;
   date: string;
@@ -108,6 +109,7 @@ function getInitialRefuelState(
     return {
       vehicle_id: fallbackVehicleId,
       liters: '',
+      price_per_liter: '',
       total_cost: '',
       odometer_km: '',
       date: getTodayValue(),
@@ -120,6 +122,7 @@ function getInitialRefuelState(
   return {
     vehicle_id: refuel.vehicle_id,
     liters: String(refuel.liters),
+    price_per_liter: String(refuel.price_per_liter),
     total_cost: String(refuel.total_cost),
     odometer_km: String(refuel.odometer_km),
     date: refuel.date,
@@ -449,16 +452,21 @@ function RefuelForm({
     setFormState(getInitialRefuelState(refuel, vehicles));
   }, [refuel, vehicles]);
 
-  const pricePerLiter = useMemo(() => {
+  const calculatedTotalCost = useMemo(() => {
     const liters = parsePositiveDecimal(formState.liters);
-    const totalCost = parsePositiveDecimal(formState.total_cost);
+    const pricePerLiter = parsePositiveDecimal(formState.price_per_liter);
 
-    if (liters === null || totalCost === null || liters <= 0) {
+    if (
+      liters === null ||
+      pricePerLiter === null ||
+      liters <= 0 ||
+      pricePerLiter <= 0
+    ) {
       return null;
     }
 
-    return (totalCost / liters).toFixed(3);
-  }, [formState.liters, formState.total_cost]);
+    return (liters * pricePerLiter).toFixed(2);
+  }, [formState.liters, formState.price_per_liter]);
 
   const updateField = <K extends keyof RefuelFormState>(
     key: K,
@@ -469,7 +477,9 @@ function RefuelForm({
 
   const handleSubmit = async () => {
     const liters = parsePositiveDecimal(formState.liters);
-    const totalCost = parsePositiveDecimal(formState.total_cost);
+    const pricePerLiter = parsePositiveDecimal(formState.price_per_liter);
+    const totalCostRaw = formState.total_cost.trim();
+    const totalCost = totalCostRaw ? parsePositiveDecimal(totalCostRaw) : null;
     const odometerKm = parseOdometer(formState.odometer_km);
 
     if (!formState.vehicle_id) {
@@ -482,8 +492,13 @@ function RefuelForm({
       return;
     }
 
-    if (totalCost === null || totalCost <= 0) {
-      setErrorMessage('Inserisci un costo totale valido.');
+    if (pricePerLiter === null || pricePerLiter <= 0) {
+      setErrorMessage('Inserisci un costo al litro valido.');
+      return;
+    }
+
+    if (totalCostRaw && (totalCost === null || totalCost <= 0)) {
+      setErrorMessage('Inserisci un totale valido oppure lascialo vuoto.');
       return;
     }
 
@@ -505,6 +520,7 @@ function RefuelForm({
         uid,
         vehicle_id: formState.vehicle_id,
         liters,
+        price_per_liter: pricePerLiter,
         total_cost: totalCost,
         odometer_km: odometerKm,
         date: formState.date,
@@ -555,23 +571,34 @@ function RefuelForm({
               />
             </label>
             <label className={LABEL_CLASS_NAME}>
-              Totale
+              Costo al litro
               <input
                 type="text"
                 inputMode="decimal"
-                value={formState.total_cost}
-                onChange={event => updateField('total_cost', event.target.value)}
+                value={formState.price_per_liter}
+                onChange={event =>
+                  updateField('price_per_liter', event.target.value)
+                }
                 className={INPUT_CLASS_NAME}
-                placeholder="Es. 76.40"
+                placeholder="Es. 1.859"
               />
             </label>
           </div>
 
           <label className={LABEL_CLASS_NAME}>
-            Costo al litro
-            <div className="mt-2 rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-sm text-white">
-              {pricePerLiter ? `${pricePerLiter} EUR/L` : '--'}
-            </div>
+            Totale speso
+            <input
+              type="text"
+              inputMode="decimal"
+              value={formState.total_cost}
+              onChange={event => updateField('total_cost', event.target.value)}
+              className={INPUT_CLASS_NAME}
+              placeholder="Opzionale"
+            />
+            <p className="mt-2 text-xs leading-5 text-slate-400">
+              Se lo lasci vuoto, viene calcolato automaticamente da litri x costo al litro.
+              {calculatedTotalCost ? ` Totale calcolato: ${calculatedTotalCost} EUR.` : ''}
+            </p>
           </label>
 
           <div className="grid grid-cols-2 gap-3">

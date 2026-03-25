@@ -119,12 +119,19 @@ function sanitizeVehicleInput(input: VehicleInput) {
 }
 
 function sanitizeRefuelInput(input: RefuelInput) {
+  const liters = Number(input.liters.toFixed(3));
+  const pricePerLiter = Number(input.price_per_liter.toFixed(3));
+  const totalCost =
+    input.total_cost === null
+      ? Number((liters * pricePerLiter).toFixed(2))
+      : Number(input.total_cost.toFixed(2));
+
   return {
     uid: input.uid,
     vehicle_id: input.vehicle_id,
-    liters: Number(input.liters.toFixed(3)),
-    total_cost: Number(input.total_cost.toFixed(2)),
-    price_per_liter: Number((input.total_cost / input.liters).toFixed(3)),
+    liters,
+    total_cost: totalCost,
+    price_per_liter: pricePerLiter,
     odometer_km: input.odometer_km,
     date: input.date,
     is_full_tank: input.is_full_tank,
