@@ -65,7 +65,6 @@ interface VehicleFormState {
   color: string;
   tank_capacity_liters: string;
   fuel_type: VehicleInput['fuel_type'];
-  is_active: boolean;
 }
 
 interface RefuelFormState {
@@ -105,7 +104,6 @@ function getInitialVehicleState(vehicle?: Vehicle | null): VehicleFormState {
       color: '',
       tank_capacity_liters: '',
       fuel_type: 'Benzina',
-      is_active: true,
     };
   }
 
@@ -119,7 +117,6 @@ function getInitialVehicleState(vehicle?: Vehicle | null): VehicleFormState {
     color: vehicle.color ?? '',
     tank_capacity_liters: String(vehicle.tank_capacity_liters),
     fuel_type: vehicle.fuel_type,
-    is_active: vehicle.is_active,
   };
 }
 
@@ -279,7 +276,7 @@ function VehicleForm({
         color: formState.color.trim() || null,
         tank_capacity_liters: tankCapacity,
         fuel_type: formState.fuel_type,
-        is_active: formState.is_active,
+        is_active: vehicle?.is_active ?? false,
       });
     } catch (error) {
       console.error('Failed to save vehicle', error);
@@ -425,33 +422,6 @@ function VehicleForm({
             </label>
           </div>
 
-          <button
-            type="button"
-            onClick={() => updateField('is_active', !formState.is_active)}
-            className={`flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-left text-sm transition ${
-              formState.is_active
-                ? 'border-sky-400/40 bg-sky-500/12 text-sky-100'
-                : 'border-white/10 bg-slate-900 text-slate-300'
-            }`}
-          >
-            <span>
-              <span className="block font-medium">Veicolo attivo</span>
-              <span className="mt-1 block text-xs text-slate-400">
-                Usato come riferimento principale nel garage.
-              </span>
-            </span>
-            <span
-              className={`h-6 w-11 rounded-full p-1 transition ${
-                formState.is_active ? 'bg-sky-400/80' : 'bg-slate-700'
-              }`}
-            >
-              <span
-                className={`block h-4 w-4 rounded-full bg-white transition ${
-                  formState.is_active ? 'translate-x-5' : ''
-                }`}
-              />
-            </span>
-          </button>
 
           {errorMessage ? (
             <p className="rounded-2xl border border-rose-400/25 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">

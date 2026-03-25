@@ -3,6 +3,7 @@ import type { User } from 'firebase/auth';
 import { onAuthStateChanged } from 'firebase/auth';
 import {
   CarFront,
+  ChevronDown,
   CircleDollarSign,
   Fuel,
   Home,
@@ -12,6 +13,7 @@ import {
 } from 'lucide-react';
 import { AddEntryModal } from './components/AddEntryModal';
 import { AuthScreen } from './components/AuthScreen';
+import { BrandLogo } from './components/BrandLogo';
 import { isUsingFirebaseEmulators, localAuthEmail } from './lib/env';
 import {
   ACCESS_DENIED_MESSAGE,
@@ -31,6 +33,7 @@ import {
   deleteRefuel,
   deleteVehicle,
   getReadableDataError,
+  setActiveVehicle,
   subscribeToExpenses,
   subscribeToRefuels,
   subscribeToVehicles,
@@ -128,37 +131,24 @@ const QUICK_ADD_OPTIONS: Array<{
   },
 ];
 
-function getSectionCopy(activeTab: AppTab) {
-  if (activeTab === 'vehicles') {
-    return {
-      eyebrow: 'Garage',
-      title: 'Veicoli',
-      description: 'Auto e moto salvate nel tuo garage personale.',
-    };
-  }
-
-  if (activeTab === 'refuels') {
-    return {
-      eyebrow: 'Carburante',
-      title: 'Rifornimenti',
-      description: 'Litri, costo e contachilometri degli ultimi movimenti.',
-    };
-  }
-
-  if (activeTab === 'expenses') {
-    return {
-      eyebrow: 'Costi',
-      title: 'Spese',
-      description: 'Assicurazione, bollo, manutenzione e altre uscite.',
-    };
-  }
-
-  return {
-    eyebrow: 'Riepilogo',
-    title: 'Dashboard',
-    description: "Garage, rifornimenti recenti e costo carburante a colpo d'occhio.",
-  };
-}
+const SECTION_COPY: Record<AppTab, { title: string; subtitle: string }> = {
+  overview: {
+    title: 'Riepilogo',
+    subtitle: "Garage, carburante e costi in un colpo d'occhio.",
+  },
+  vehicles: {
+    title: 'Veicoli',
+    subtitle: 'Auto e moto del tuo garage.',
+  },
+  refuels: {
+    title: 'Rifornimenti',
+    subtitle: 'Litri, costo e contachilometri dei tuoi pieni.',
+  },
+  expenses: {
+    title: 'Spese',
+    subtitle: 'Assicurazione, bollo e altre uscite del garage.',
+  },
+};
 
 export default function App() {
   const hasAttemptedLocalSession = useRef(false);
@@ -181,6 +171,8 @@ export default function App() {
   const [pendingDeletion, setPendingDeletion] = useState<PendingDeletion | null>(
     null,
   );
+  const [isShowingAllVehiclesData, setIsShowingAllVehiclesData] = useState(false);
+  const [isSwitchingVehicle, setIsSwitchingVehicle] = useState(false);
 
   useEffect(() => {
     void consumeRedirectResult().catch(error => {
@@ -345,8 +337,31 @@ export default function App() {
     pendingDeletion?.kind === 'expense'
       ? expenses.filter(expense => expense.id !== pendingDeletion.expense.id)
       : expenses;
-  const activeVehicle = visibleVehicles.find(vehicle => vehicle.is_active) ?? null;
-  const sectionCopy = useMemo(() => getSectionCopy(activeTab), [activeTab]);
+  const activeVehicle =
+    visibleVehicles.find(vehicle => vehicle.is_active) ?? visibleVehicles[0] ?? null;
+  const sectionCopy = SECTION_COPY[activeTab];
+
+  useEffect(() => {
+    if (visibleVehicles.length <= 1 && isShowingAllVehiclesData) {
+      setIsShowingAllVehiclesData(false);
+    }
+  }, [isShowingAllVehiclesData, visibleVehicles.length]);
+
+  const filteredRefuels = useMemo(() => {
+    if (isShowingAllVehiclesData || !activeVehicle) {
+      return visibleRefuels;
+    }
+
+    return visibleRefuels.filter(refuel => refuel.vehicle_id === activeVehicle.id);
+  }, [activeVehicle, isShowingAllVehiclesData, visibleRefuels]);
+
+  const filteredExpenses = useMemo(() => {
+    if (isShowingAllVehiclesData || !activeVehicle) {
+      return visibleExpenses;
+    }
+
+    return visibleExpenses.filter(expense => expense.vehicle_id === activeVehicle.id);
+  }, [activeVehicle, isShowingAllVehiclesData, visibleExpenses]);
 
   const closeModal = () => {
     setModalState(null);
@@ -379,6 +394,30 @@ export default function App() {
       setAuthError(getReadableAuthError(error));
     } finally {
       setIsPreparingLocalMode(false);
+    }
+  };
+
+  const handleSelectActiveVehicle = async (vehicleId: string) => {
+    if (!user || !vehicleId) {
+      return;
+    }
+
+    if (vehicleId === activeVehicle?.id) {
+      setIsShowingAllVehiclesData(false);
+      return;
+    }
+
+    setIsSwitchingVehicle(true);
+
+    try {
+      await setActiveVehicle(user.uid, vehicleId);
+      setIsShowingAllVehiclesData(false);
+      setToast({ message: 'Veicolo attivo aggiornato.', tone: 'success' });
+    } catch (error) {
+      console.error('Failed to switch active vehicle', error);
+      setToast({ message: getReadableDataError(error), tone: 'error' });
+    } finally {
+      setIsSwitchingVehicle(false);
     }
   };
 
@@ -610,62 +649,111 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-[100dvh] bg-[radial-gradient(circle_at_top,_rgba(14,165,233,0.08),_transparent_34%),linear-gradient(180deg,_#020617_0%,_#0f172a_48%,_#111827_100%)] pb-[calc(7.75rem+env(safe-area-inset-bottom))] text-slate-50">
+    <div className="min-h-[100dvh] bg-[radial-gradient(circle_at_top,_rgba(14,165,233,0.08),_transparent_34%),linear-gradient(180deg,_#020617_0%,_#0f172a_48%,_#111827_100%)] pb-[calc(6.85rem+env(safe-area-inset-bottom))] text-slate-50">
       <header className="sticky top-0 z-20 border-b border-white/6 bg-slate-950/88 backdrop-blur">
         <div className="h-[env(safe-area-inset-top)]" />
-        <div className="mx-auto flex max-w-md items-center justify-between gap-4 px-4 py-4">
-          <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
-              {sectionCopy.eyebrow}
-            </p>
-            <h1 className="mt-1 text-2xl font-semibold tracking-tight text-white">
-              {sectionCopy.title}
-            </h1>
-            <p className="mt-1 text-sm text-slate-400">{sectionCopy.description}</p>
+        <div className="mx-auto max-w-md px-4 pb-3.5 pt-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+                Motorlog
+              </p>
+              <h1 className="mt-1 text-[1.65rem] font-semibold tracking-tight text-white">
+                {sectionCopy.title}
+              </h1>
+              <p className="mt-1 text-sm text-slate-400">{sectionCopy.subtitle}</p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {isUsingFirebaseEmulators ? (
+                <div className="rounded-full border border-sky-400/20 bg-sky-500/12 px-3 py-1.5 text-right">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-sky-300">
+                    Demo locale
+                  </p>
+                  <p className="text-xs font-medium text-sky-100">Emulator</p>
+                </div>
+              ) : null}
+              {isUsingFirebaseEmulators ? null : (
+                <button
+                  type="button"
+                  onClick={handleLogOut}
+                  className="rounded-full border border-white/10 bg-white/5 p-2.5 text-slate-300 transition hover:bg-white/10"
+                  title="Esci"
+                >
+                  <LogOut className="h-4 w-4" />
+                </button>
+              )}
+            </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            {isUsingFirebaseEmulators ? (
-              <div className="rounded-full border border-sky-400/20 bg-sky-500/12 px-3 py-2 text-right">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-sky-300">
-                  Demo locale
-                </p>
-                <p className="max-w-[7.5rem] truncate text-sm font-medium text-sky-100">
-                  Emulator
-                </p>
+          {visibleVehicles.length > 0 ? (
+            <div className="mt-3 flex items-center gap-2">
+              <div className="flex min-w-0 flex-1 items-center gap-2 rounded-[1.35rem] border border-white/8 bg-white/5 px-3 py-2.5">
+                {activeVehicle ? (
+                  <BrandLogo
+                    brand={activeVehicle.brand}
+                    vehicleType={activeVehicle.vehicle_type}
+                    size="sm"
+                  />
+                ) : (
+                  <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-white/8 bg-slate-950/70 text-slate-300">
+                    <CarFront className="h-4 w-4" />
+                  </span>
+                )}
+                <div className="relative min-w-0 flex-1">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                    Veicolo selezionato
+                  </p>
+                  <select
+                    value={activeVehicle?.id ?? ''}
+                    onChange={event => {
+                      void handleSelectActiveVehicle(event.target.value);
+                    }}
+                    disabled={isSwitchingVehicle}
+                    className="mt-1 w-full appearance-none bg-transparent pr-6 text-sm font-medium text-white outline-none disabled:cursor-not-allowed disabled:text-slate-500"
+                  >
+                    {visibleVehicles.map(vehicle => (
+                      <option
+                        key={vehicle.id}
+                        value={vehicle.id}
+                        className="bg-slate-950 text-white"
+                      >
+                        {vehicle.name}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="pointer-events-none absolute right-0 top-[1.1rem] h-4 w-4 text-slate-500" />
+                </div>
               </div>
-            ) : null}
-            {activeVehicle ? (
-              <div className="hidden rounded-full border border-white/10 bg-white/5 px-3 py-2 text-right sm:block">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-                  Attivo
-                </p>
-                <p className="max-w-[7.5rem] truncate text-sm font-medium text-white">
-                  {activeVehicle.name}
-                </p>
-              </div>
-            ) : null}
-            {isUsingFirebaseEmulators ? null : (
-              <button
-                type="button"
-                onClick={handleLogOut}
-                className="rounded-full border border-white/10 bg-white/5 p-2.5 text-slate-300 transition hover:bg-white/10"
-                title="Esci"
-              >
-                <LogOut className="h-4 w-4" />
-              </button>
-            )}
-          </div>
+
+              {visibleVehicles.length > 1 || isShowingAllVehiclesData ? (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setIsShowingAllVehiclesData(current => !current)
+                  }
+                  className={`shrink-0 rounded-[1.15rem] border px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.12em] transition ${
+                    isShowingAllVehiclesData
+                      ? 'border-sky-400/20 bg-sky-500/12 text-sky-100'
+                      : 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10'
+                  }`}
+                >
+                  {isShowingAllVehiclesData ? 'Solo attivo' : 'Mostra tutto'}
+                </button>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       </header>
 
-      <main className="mx-auto max-w-md space-y-4 px-4 py-4">
+      <main className="mx-auto max-w-md space-y-3.5 px-4 py-4">
         <div key={activeTab} className="section-enter">
           {activeTab === 'overview' ? (
             <OverviewSection
               vehicles={visibleVehicles}
-              refuels={visibleRefuels}
-              expenses={visibleExpenses}
+              refuels={filteredRefuels}
+              expenses={filteredExpenses}
+              isShowingAllVehiclesData={isShowingAllVehiclesData}
             />
           ) : activeTab === 'vehicles' ? (
             <VehiclesSection
@@ -679,7 +767,7 @@ export default function App() {
           ) : activeTab === 'refuels' ? (
             <RefuelsSection
               vehicles={visibleVehicles}
-              refuels={visibleRefuels}
+              refuels={filteredRefuels}
               isLoading={!isRefuelsReady}
               onAddRefuel={openCreateRefuelModal}
               onEditRefuel={refuel =>
@@ -689,7 +777,7 @@ export default function App() {
           ) : (
             <ExpensesSection
               vehicles={visibleVehicles}
-              expenses={visibleExpenses}
+              expenses={filteredExpenses}
               isLoading={!isExpensesReady}
               onAddExpense={openCreateExpenseModal}
               onEditExpense={expense =>
@@ -701,7 +789,7 @@ export default function App() {
       </main>
 
       <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-white/8 bg-slate-950/92 backdrop-blur">
-        <div className="mx-auto flex max-w-md items-center justify-between gap-1 px-3 pb-[calc(0.85rem+env(safe-area-inset-bottom))] pt-3">
+        <div className="mx-auto flex max-w-md items-center justify-between gap-1 px-3 pb-[calc(0.7rem+env(safe-area-inset-bottom))] pt-2.5">
           {NAV_ITEMS.map(item => {
             const Icon = item.icon;
             const isActive = item.tab === activeTab;
@@ -711,13 +799,13 @@ export default function App() {
                 key={item.tab}
                 type="button"
                 onClick={() => setActiveTab(item.tab)}
-                className={`flex min-w-0 flex-1 flex-col items-center gap-1 rounded-2xl px-2 py-2.5 text-xs font-medium transition ${
+                className={`flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-[1rem] px-1.5 py-2 text-[11px] font-medium transition ${
                   isActive
                     ? item.activeClassName
                     : 'text-slate-500 hover:bg-white/5 hover:text-slate-200'
                 }`}
               >
-                <Icon className="h-4 w-4" />
+                <Icon className="h-3.5 w-3.5" />
                 <span className="truncate">{item.label}</span>
               </button>
             );
@@ -728,9 +816,9 @@ export default function App() {
       <button
         type="button"
         onClick={() => setIsQuickAddOpen(current => !current)}
-        className="fixed bottom-[calc(5.85rem+env(safe-area-inset-bottom))] right-4 z-30 inline-flex h-14 w-14 items-center justify-center rounded-full bg-sky-500 text-slate-950 shadow-[0_18px_40px_rgba(14,165,233,0.35)] transition hover:bg-sky-400 active:scale-[0.97]"
+        className="fixed bottom-[calc(5.35rem+env(safe-area-inset-bottom))] right-4 z-30 inline-flex h-12 w-12 items-center justify-center rounded-full bg-sky-500 text-slate-950 shadow-[0_18px_40px_rgba(14,165,233,0.35)] transition hover:bg-sky-400 active:scale-[0.97]"
       >
-        {isQuickAddOpen ? <X className="h-6 w-6" /> : <Plus className="h-6 w-6" />}
+        {isQuickAddOpen ? <X className="h-5 w-5" /> : <Plus className="h-5 w-5" />}
       </button>
 
       {isQuickAddOpen ? (
@@ -741,13 +829,13 @@ export default function App() {
             onClick={() => setIsQuickAddOpen(false)}
             className="quick-add-overlay z-20"
           />
-          <div className="quick-add-enter fixed bottom-[calc(10.5rem+env(safe-area-inset-bottom))] right-4 z-30 flex flex-col items-end gap-2">
+          <div className="quick-add-enter fixed bottom-[calc(9.2rem+env(safe-area-inset-bottom))] right-4 z-30 flex flex-col items-end gap-2">
             {QUICK_ADD_OPTIONS.map(option => (
               <button
                 key={option.type}
                 type="button"
                 onClick={() => handleQuickAddSelection(option.type)}
-                className={`rounded-full border px-5 py-3 text-base font-semibold transition hover:scale-[1.02] ${option.accentClassName}`}
+                className={`rounded-full border px-4 py-2.5 text-sm font-semibold transition hover:scale-[1.02] ${option.accentClassName}`}
               >
                 {option.label}
               </button>
@@ -813,7 +901,7 @@ export default function App() {
       ) : null}
 
       {pendingDeletion ? (
-        <div className="fixed inset-x-4 bottom-[calc(6.25rem+env(safe-area-inset-bottom))] z-40 mx-auto max-w-md">
+        <div className="fixed inset-x-4 bottom-[calc(5.8rem+env(safe-area-inset-bottom))] z-40 mx-auto max-w-md">
           <div className="toast-enter flex items-center justify-between gap-3 rounded-3xl border border-white/8 bg-slate-900 px-4 py-3 text-sm text-white shadow-2xl">
             <span className="min-w-0 truncate">
               {pendingDeletion.kind === 'vehicle'

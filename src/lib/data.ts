@@ -490,6 +490,48 @@ export async function updateVehicle(vehicleId: string, input: VehicleInput) {
   await batch.commit();
 }
 
+export async function setActiveVehicle(uid: string, vehicleId: string) {
+  const vehiclesSnapshot = await getDocs(
+    query(getVehiclesCollection(uid), orderBy('updated_at', 'desc')),
+  );
+
+  if (vehiclesSnapshot.empty) {
+    return;
+  }
+
+  let hasTarget = false;
+  let hasChanges = false;
+  const now = new Date().toISOString();
+  const batch = writeBatch(db);
+
+  vehiclesSnapshot.docs.forEach(document => {
+    const isTarget = document.id === vehicleId;
+    const isCurrentlyActive = document.data().is_active === true;
+
+    if (isTarget) {
+      hasTarget = true;
+    }
+
+    if (isCurrentlyActive !== isTarget) {
+      hasChanges = true;
+      batch.update(document.ref, {
+        is_active: isTarget,
+        updated_at: now,
+      });
+    }
+  });
+
+  if (!hasTarget) {
+    throw new Error('Veicolo non trovato.');
+  }
+
+  if (!hasChanges) {
+    return;
+  }
+
+  await batch.commit();
+}
+
 export async function deleteVehicle(uid: string, vehicleId: string) {
   const vehicleRef = doc(getVehiclesCollection(uid), vehicleId);
   const [
