@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { User } from 'firebase/auth';
 import { onAuthStateChanged } from 'firebase/auth';
 import {
@@ -12,11 +12,13 @@ import {
 } from 'lucide-react';
 import { AddEntryModal } from './components/AddEntryModal';
 import { AuthScreen } from './components/AuthScreen';
+import { isUsingFirebaseEmulators, localAuthEmail } from './lib/env';
 import {
   ACCESS_DENIED_MESSAGE,
   ALLOWED_EMAIL,
   auth,
   consumeRedirectResult,
+  ensureLocalSession,
   getReadableAuthError,
   logOut,
   signInWithGoogle,
@@ -152,9 +154,13 @@ function getToastClassName(tone: ToastTone) {
 }
 
 export default function App() {
+  const hasAttemptedLocalSession = useRef(false);
   const [user, setUser] = useState<User | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
+  const [isPreparingLocalMode, setIsPreparingLocalMode] = useState(
+    isUsingFirebaseEmulators,
+  );
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [isVehiclesReady, setIsVehiclesReady] = useState(false);
   const [activeTab, setActiveTab] = useState<AppTab>('overview');
@@ -191,6 +197,34 @@ export default function App() {
 
     return () => unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (!isUsingFirebaseEmulators || !isAuthReady) {
+      return;
+    }
+
+    if (user) {
+      setIsPreparingLocalMode(false);
+      return;
+    }
+
+    if (hasAttemptedLocalSession.current) {
+      setIsPreparingLocalMode(false);
+      return;
+    }
+
+    hasAttemptedLocalSession.current = true;
+    setIsPreparingLocalMode(true);
+
+    void ensureLocalSession()
+      .catch(error => {
+        console.error('Failed to bootstrap local session', error);
+        setAuthError(getReadableAuthError(error));
+      })
+      .finally(() => {
+        setIsPreparingLocalMode(false);
+      });
+  }, [isAuthReady, user]);
 
   useEffect(() => {
     if (!isAuthReady || !user) {
@@ -280,6 +314,20 @@ export default function App() {
     await logOut();
   };
 
+  const handleRetryLocalMode = async () => {
+    setAuthError(null);
+    setIsPreparingLocalMode(true);
+
+    try {
+      await ensureLocalSession();
+    } catch (error) {
+      console.error('Failed to reconnect local mode', error);
+      setAuthError(getReadableAuthError(error));
+    } finally {
+      setIsPreparingLocalMode(false);
+    }
+  };
+
   const handleCreateVehicle = async (input: VehicleInput) => {
     await createVehicle(input);
     setIsVehicleModalOpen(false);
@@ -355,15 +403,60 @@ export default function App() {
     });
   };
 
-  if (!isAuthReady) {
+  if (!isAuthReady || (isUsingFirebaseEmulators && !user && isPreparingLocalMode)) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-950">
-        <div className="h-12 w-12 animate-spin rounded-full border-2 border-slate-800 border-t-sky-400" />
+        <div className="flex flex-col items-center gap-4 px-6 text-center">
+          <div className="h-12 w-12 animate-spin rounded-full border-2 border-slate-800 border-t-sky-400" />
+          {isUsingFirebaseEmulators ? (
+            <div className="space-y-1">
+              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-sky-300">
+                Demo locale
+              </p>
+              <p className="text-sm text-slate-400">
+                Connessione agli emulatori Firebase in corso.
+              </p>
+            </div>
+          ) : null}
+        </div>
       </div>
     );
   }
 
   if (!user) {
+    if (isUsingFirebaseEmulators) {
+      return (
+        <div className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top,_rgba(14,165,233,0.1),_transparent_36%),linear-gradient(180deg,_#020617_0%,_#0f172a_48%,_#111827_100%)] px-6 py-10 text-slate-50">
+          <div className="w-full max-w-sm rounded-[2rem] border border-white/8 bg-slate-950/78 p-6 shadow-2xl backdrop-blur">
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-sky-300">
+              Demo locale
+            </p>
+            <h1 className="mt-3 text-3xl font-semibold tracking-tight text-white">
+              Motorlog in locale
+            </h1>
+            <p className="mt-3 text-sm leading-6 text-slate-300">
+              Modalita rapida con Firebase Emulator Suite. Nessun login Google:
+              viene usato l&apos;account demo autorizzato{' '}
+              <span className="font-medium text-slate-100">{localAuthEmail}</span>.
+            </p>
+            <p className="mt-4 rounded-2xl border border-white/8 bg-white/4 px-4 py-3 text-sm text-slate-400">
+              {authError ||
+                'Avvia auth e firestore in locale, poi lancia il seed demo per entrare direttamente nell’app.'}
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                void handleRetryLocalMode();
+              }}
+              className="mt-5 inline-flex w-full items-center justify-center rounded-full bg-sky-500 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-sky-400"
+            >
+              Riprova connessione locale
+            </button>
+          </div>
+        </div>
+      );
+    }
+
     return <AuthScreen onSignIn={handleSignIn} errorMessage={authError} />;
   }
 
@@ -385,6 +478,16 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-2">
+            {isUsingFirebaseEmulators ? (
+              <div className="rounded-full border border-sky-400/20 bg-sky-500/12 px-3 py-2 text-right">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-sky-300">
+                  Demo locale
+                </p>
+                <p className="max-w-[7.5rem] truncate text-sm font-medium text-sky-100">
+                  Emulator
+                </p>
+              </div>
+            ) : null}
             {activeVehicle ? (
               <div className="hidden rounded-full border border-white/10 bg-white/5 px-3 py-2 text-right sm:block">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
@@ -395,14 +498,16 @@ export default function App() {
                 </p>
               </div>
             ) : null}
-            <button
-              type="button"
-              onClick={handleLogOut}
-              className="rounded-full border border-white/10 bg-white/5 p-2.5 text-slate-300 transition hover:bg-white/10"
-              title="Esci"
-            >
-              <LogOut className="h-4 w-4" />
-            </button>
+            {isUsingFirebaseEmulators ? null : (
+              <button
+                type="button"
+                onClick={handleLogOut}
+                className="rounded-full border border-white/10 bg-white/5 p-2.5 text-slate-300 transition hover:bg-white/10"
+                title="Esci"
+              >
+                <LogOut className="h-4 w-4" />
+              </button>
+            )}
           </div>
         </div>
       </header>

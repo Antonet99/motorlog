@@ -5,9 +5,13 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:emulator": "vite --mode emulator --host 0.0.0.0",
     "build": "vite build",
     "preview": "vite preview",
     "preview:deploy": "npm run build && npx firebase-tools hosting:channel:deploy preview --expires 30d",
+    "emulators:start": "npx firebase-tools emulators:start --project motorlog-qbk6 --only auth,firestore",
+    "seed:demo": "node scripts/seed-demo.mjs",
+    "local:start": "npx firebase-tools emulators:exec --project motorlog-qbk6 --only auth,firestore \"node scripts/seed-demo.mjs && npx vite --mode emulator --host 0.0.0.0\"",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit"
   },
@@ -20,6 +24,7 @@
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.14",
     "@types/node": "^22.14.0",
+    "firebase-admin": "^13.4.0",
     "@vitejs/plugin-react": "^5.0.4",
     "firebase-tools": "^15.11.0",
     "tailwindcss": "^4.1.14",

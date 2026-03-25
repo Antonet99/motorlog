@@ -43,7 +43,7 @@ jobs:
         if: github.event_name == 'pull_request'
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
-        run: npx firebase-tools hosting:channel:deploy pr-${{ github.event.pull_request.number }} --expires 7d --project "$VITE_FIREBASE_PROJECT_ID" --token "$FIREBASE_TOKEN" --non-interactive
+        run: npx firebase-tools hosting:channel:deploy preview --expires 30d --project "$VITE_FIREBASE_PROJECT_ID" --token "$FIREBASE_TOKEN" --non-interactive
 
       - name: Deploy to Firebase
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
