@@ -196,7 +196,24 @@ async function seedDemoVehicles() {
 async function seedDemoRefuels(userRef) {
   await replaceCollection(userRef.collection('refuels'), [
     {
-      id: 'refuel-fiesta-daily',
+      id: 'refuel-panda-older-full',
+      data: {
+        uid: DEFAULT_UID,
+        vehicle_id: 'fiat-panda',
+        liters: 30.8,
+        total_cost: 55.75,
+        price_per_liter: 1.81,
+        odometer_km: 47820,
+        date: getDay(-18),
+        is_full_tank: true,
+        station: 'IP',
+        notes: null,
+        created_at: getNow(-260),
+        updated_at: getNow(-260),
+      },
+    },
+    {
+      id: 'refuel-fiat-panda-latest',
       data: {
         uid: DEFAULT_UID,
         vehicle_id: 'fiat-panda',
