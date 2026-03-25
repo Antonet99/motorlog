@@ -60,3 +60,31 @@ export interface VehicleInput {
   fuel_type: FuelType;
   is_active: boolean;
 }
+
+export interface Refuel {
+  id: string;
+  uid: string;
+  vehicle_id: string;
+  liters: number;
+  total_cost: number;
+  price_per_liter: number;
+  odometer_km: number;
+  date: string;
+  is_full_tank: boolean;
+  station: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RefuelInput {
+  uid: string;
+  vehicle_id: string;
+  liters: number;
+  total_cost: number;
+  odometer_km: number;
+  date: string;
+  is_full_tank: boolean;
+  station: string | null;
+  notes: string | null;
+}

@@ -8,8 +8,7 @@ service cloud.firestore {
 
     function isAllowedUser() {
       return isSignedIn() &&
-             request.auth.token.email == 'antoniobaio90@gmail.com' &&
-             request.auth.token.email_verified == true;
+             request.auth.token.email == 'antoniobaio90@gmail.com';
     }
 
     function isOwner(userId) {
@@ -18,7 +17,11 @@ service cloud.firestore {
 
     function isDateString(value) {
       return value is string &&
-             value.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*Z$");
+             value.matches('^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*Z$');
+    }
+
+    function isDayString(value) {
+      return value is string && value.matches('^\\d{4}-\\d{2}-\\d{2}$');
     }
 
     function isShortString(value, maxSize) {
@@ -43,6 +46,14 @@ service cloud.firestore {
         'Ibrido diesel',
         'Elettrico'
       ];
+    }
+
+    function vehicleDocPath(userId, vehicleId) {
+      return /databases/$(database)/documents/users/$(userId)/vehicles/$(vehicleId);
+    }
+
+    function vehicleExists(userId, vehicleId) {
+      return vehicleId is string && exists(vehicleDocPath(userId, vehicleId));
     }
 
     function isValidVehicle(data, userId) {
@@ -93,6 +104,55 @@ service cloud.firestore {
              isDateString(data.updated_at);
     }
 
+    function isValidRefuel(data, userId) {
+      return data.keys().hasOnly([
+               'uid',
+               'vehicle_id',
+               'liters',
+               'total_cost',
+               'price_per_liter',
+               'odometer_km',
+               'date',
+               'is_full_tank',
+               'station',
+               'notes',
+               'created_at',
+               'updated_at'
+             ]) &&
+             data.keys().hasAll([
+               'uid',
+               'vehicle_id',
+               'liters',
+               'total_cost',
+               'price_per_liter',
+               'odometer_km',
+               'date',
+               'is_full_tank',
+               'created_at',
+               'updated_at'
+             ]) &&
+             data.uid == userId &&
+             vehicleExists(userId, data.vehicle_id) &&
+             data.liters is number &&
+             data.liters > 0 &&
+             data.liters < 200 &&
+             data.total_cost is number &&
+             data.total_cost > 0 &&
+             data.total_cost < 2000 &&
+             data.price_per_liter is number &&
+             data.price_per_liter > 0 &&
+             data.price_per_liter < 10 &&
+             data.odometer_km is int &&
+             data.odometer_km >= 0 &&
+             data.odometer_km < 10000000 &&
+             isDayString(data.date) &&
+             data.is_full_tank is bool &&
+             isOptionalString(data.station, 120) &&
+             isOptionalString(data.notes, 500) &&
+             isDateString(data.created_at) &&
+             isDateString(data.updated_at);
+    }
+
     match /users/{userId}/vehicles/{vehicleId} {
       allow read, delete: if isOwner(userId);
       allow create: if isOwner(userId) &&
@@ -105,7 +165,14 @@ service cloud.firestore {
     }
 
     match /users/{userId}/refuels/{refuelId} {
-      allow read, write: if false;
+      allow read, delete: if isOwner(userId);
+      allow create: if isOwner(userId) &&
+                      request.resource.data.uid == request.auth.uid &&
+                      isValidRefuel(request.resource.data, userId);
+      allow update: if isOwner(userId) &&
+                      resource.data.uid == request.auth.uid &&
+                      request.resource.data.uid == resource.data.uid &&
+                      isValidRefuel(request.resource.data, userId);
     }
 
     match /users/{userId}/expenses/{expenseId} {
