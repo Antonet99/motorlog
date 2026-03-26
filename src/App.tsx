@@ -18,8 +18,8 @@ import { downloadVehicleWorkbook } from './lib/export';
 import { isUsingFirebaseEmulators, localAuthEmail } from './lib/env';
 import {
   ACCESS_DENIED_MESSAGE,
-  ALLOWED_EMAIL,
   auth,
+  isAllowedEmail,
   consumeRedirectResult,
   ensureLocalSession,
   getReadableAuthError,
@@ -190,7 +190,7 @@ export default function App() {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, currentUser => {
-      if (currentUser && currentUser.email !== ALLOWED_EMAIL) {
+      if (currentUser && !isAllowedEmail(currentUser.email)) {
         setUser(null);
         setAuthError(ACCESS_DENIED_MESSAGE);
         setIsAuthReady(true);
