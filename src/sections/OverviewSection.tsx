@@ -1,5 +1,4 @@
-import { CircleDollarSign, Fuel, Gauge, ReceiptText, Route } from 'lucide-react';
-import { BrandLogo } from '../components/BrandLogo';
+import { Fuel, Gauge, ReceiptText, Route } from 'lucide-react';
 import {
   buildRefuelInsights,
   getCurrentMonthKey,
@@ -38,10 +37,6 @@ const dateFormatter = new Intl.DateTimeFormat('it-IT', {
   year: 'numeric',
 });
 
-const monthFormatter = new Intl.DateTimeFormat('it-IT', {
-  month: 'long',
-});
-
 function formatCurrency(value: number) {
   return currencyFormatter.format(value);
 }
@@ -62,10 +57,8 @@ export function OverviewSection({ vehicles, refuels, expenses }: OverviewSection
   const sortedRefuels = sortRefuelsNewestFirst(refuels);
   const sortedExpenses = sortExpensesNewestFirst(expenses);
   const refuelInsights = buildRefuelInsights(sortedRefuels);
-  const activeVehicle = vehicles.find(vehicle => vehicle.is_active) ?? null;
   const vehiclesById = new Map(vehicles.map(vehicle => [vehicle.id, vehicle]));
   const monthKey = getCurrentMonthKey();
-  const monthLabel = monthFormatter.format(new Date());
   const refuelsThisMonth = sortedRefuels.filter(refuel => isInMonth(refuel.date, monthKey));
   const expensesThisMonth = sortedExpenses.filter(expense => isInMonth(expense.date, monthKey));
   const latestRefuel = sortedRefuels[0] ?? null;
@@ -87,44 +80,6 @@ export function OverviewSection({ vehicles, refuels, expenses }: OverviewSection
 
   return (
     <section className="space-y-3">
-      <div className="rounded-[1.35rem] border border-white/8 bg-[linear-gradient(145deg,_rgba(14,165,233,0.11),_rgba(15,23,42,0.92))] p-3.5 shadow-[0_18px_52px_rgba(2,6,23,0.3)]">
-        <div className="inline-flex items-center gap-2 rounded-full border border-sky-400/20 bg-sky-500/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-sky-200">
-          <Gauge className="h-3.5 w-3.5" />
-          Veicolo attivo
-        </div>
-
-        <div className="mt-3 flex items-center gap-3">
-          {activeVehicle ? (
-            <BrandLogo
-              brand={activeVehicle.brand}
-              vehicleType={activeVehicle.vehicle_type}
-              size="lg"
-            />
-          ) : null}
-          <div className="min-w-0">
-            <h2 className="truncate text-lg font-semibold text-white">
-              {activeVehicle ? activeVehicle.name : 'Nessun veicolo attivo'}
-            </h2>
-            <p className="mt-1 text-sm leading-6 text-slate-300">
-              {activeVehicle
-                ? `Questo ${monthLabel} hai registrato ${refuelsThisMonth.length} riforniment${refuelsThisMonth.length === 1 ? 'o' : 'i'} e ${expensesThisMonth.length} spes${expensesThisMonth.length === 1 ? 'a' : 'e'} sul veicolo attivo.`
-                : 'Aggiungi un veicolo per iniziare a tracciare movimenti e costi.'}
-            </p>
-          </div>
-        </div>
-
-        {activeVehicle ? (
-          <div className="mt-3 flex flex-wrap gap-2">
-            <span className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-2.5 py-1 text-[10px] font-medium text-emerald-100">
-              Carburante mensile {formatCurrency(monthlyFuelSpend)}
-            </span>
-            <span className="rounded-full border border-amber-400/20 bg-amber-500/10 px-2.5 py-1 text-[10px] font-medium text-amber-100">
-              Spese mensili {formatCurrency(monthlyExpenses)}
-            </span>
-          </div>
-        ) : null}
-      </div>
-
       <div className="grid grid-cols-2 gap-2.5">
         <div className="rounded-[1.25rem] border border-white/8 bg-slate-900/80 p-3">
           <div className="flex items-center justify-between">

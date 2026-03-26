@@ -626,19 +626,19 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-[100dvh] bg-[radial-gradient(circle_at_top,_rgba(14,165,233,0.08),_transparent_34%),linear-gradient(180deg,_#020617_0%,_#0f172a_48%,_#111827_100%)] pb-[calc(5.5rem+env(safe-area-inset-bottom))] text-slate-50">
+    <div className="min-h-[100dvh] bg-transparent pb-[calc(6.25rem+env(safe-area-inset-bottom))] text-slate-50">
       <header className="sticky top-0 z-20 border-b border-white/6 bg-slate-950/88 backdrop-blur">
         <div className="h-[env(safe-area-inset-top)]" />
-        <div className="mx-auto max-w-md px-4 pb-2.5 pt-2.5">
+        <div className="mx-auto max-w-md px-4 pb-2 pt-2">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-500">
                 Motorlog
               </p>
-              <h1 className="mt-1 text-[1.35rem] font-semibold tracking-tight text-white">
+              <h1 className="mt-1 text-[1.25rem] font-semibold tracking-tight text-white">
                 {sectionCopy.title}
               </h1>
-              <p className="mt-0.5 text-xs text-slate-400">{sectionCopy.subtitle}</p>
+              <p className="mt-0.5 text-[11px] text-slate-400">{sectionCopy.subtitle}</p>
             </div>
 
             <div className="flex items-center gap-2">
@@ -664,7 +664,7 @@ export default function App() {
           </div>
 
           {visibleVehicles.length > 0 ? (
-            <div className="mt-2.5 flex items-center gap-2 rounded-[1.15rem] border border-white/8 bg-white/5 px-3 py-2">
+            <div className="mt-2 flex items-center gap-2 rounded-[1.05rem] border border-white/8 bg-white/5 px-3 py-1.5">
               {activeVehicle ? (
                 <BrandLogo
                   brand={activeVehicle.brand}
@@ -686,7 +686,7 @@ export default function App() {
                     void handleSelectActiveVehicle(event.target.value);
                   }}
                   disabled={isSwitchingVehicle}
-                  className="mt-0.5 w-full appearance-none bg-transparent pr-6 text-sm font-medium text-white outline-none disabled:cursor-not-allowed disabled:text-slate-500"
+                  className="mt-0.5 w-full appearance-none bg-transparent pr-6 text-[13px] font-medium text-white outline-none disabled:cursor-not-allowed disabled:text-slate-500"
                 >
                   {visibleVehicles.map(vehicle => (
                     <option
@@ -705,7 +705,7 @@ export default function App() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-md space-y-3 px-4 py-3.5">
+      <main className="mx-auto max-w-md space-y-3 px-4 py-3">
         <div key={activeTab} className="section-enter">
           {activeTab === 'overview' ? (
             <OverviewSection
@@ -746,8 +746,8 @@ export default function App() {
         </div>
       </main>
 
-      <nav className="fixed inset-x-0 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-20 px-4">
-        <div className="mx-auto flex max-w-md items-center justify-between gap-1 rounded-[1.7rem] border border-white/8 bg-slate-950/92 px-2 py-2 shadow-[0_22px_50px_rgba(2,6,23,0.45)] backdrop-blur">
+      <nav className="fixed inset-x-0 bottom-[calc(0.55rem+env(safe-area-inset-bottom))] z-20 px-4">
+        <div className="mx-auto flex max-w-md items-center justify-between gap-1 rounded-[1.7rem] border border-white/8 bg-slate-950/92 px-2 py-1.5 shadow-[0_22px_50px_rgba(2,6,23,0.45)] backdrop-blur">
           {NAV_ITEMS.map(item => {
             const Icon = item.icon;
             const isActive = item.tab === activeTab;
@@ -757,7 +757,7 @@ export default function App() {
                 key={item.tab}
                 type="button"
                 onClick={() => setActiveTab(item.tab)}
-                className={`flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-[1rem] px-1.5 py-1.5 text-[10px] font-medium transition ${
+                className={`flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-[1rem] px-1 py-1.5 text-[9px] font-medium transition ${
                   isActive
                     ? item.activeClassName
                     : 'text-slate-500 hover:bg-white/5 hover:text-slate-200'
@@ -774,9 +774,9 @@ export default function App() {
       <button
         type="button"
         onClick={() => setIsQuickAddOpen(current => !current)}
-        className="fixed bottom-[calc(4.85rem+env(safe-area-inset-bottom))] right-4 z-30 inline-flex h-11 w-11 items-center justify-center rounded-full bg-sky-500 text-slate-950 shadow-[0_18px_40px_rgba(14,165,233,0.35)] transition hover:bg-sky-400 active:scale-[0.97]"
+        className="fixed bottom-[calc(6.1rem+env(safe-area-inset-bottom))] right-4 z-30 inline-flex h-12 w-12 items-center justify-center rounded-full bg-sky-500 text-slate-950 shadow-[0_18px_40px_rgba(14,165,233,0.35)] transition-all duration-300 hover:bg-sky-400 active:scale-[0.97]"
       >
-        {isQuickAddOpen ? <X className="h-5 w-5" /> : <Plus className="h-5 w-5" />}
+        {isQuickAddOpen ? <X className="h-6 w-6" /> : <Plus className="h-6 w-6" />}
       </button>
 
       {isQuickAddOpen ? (
@@ -787,7 +787,7 @@ export default function App() {
             onClick={() => setIsQuickAddOpen(false)}
             className="quick-add-overlay z-20"
           />
-          <div className="quick-add-enter fixed bottom-[calc(8.4rem+env(safe-area-inset-bottom))] right-4 z-30 flex flex-col items-end gap-2">
+          <div className="quick-add-enter fixed bottom-[calc(9.5rem+env(safe-area-inset-bottom))] right-4 z-30 flex flex-col items-end gap-2">
             {QUICK_ADD_OPTIONS.map(option => (
               <button
                 key={option.type}
@@ -859,7 +859,7 @@ export default function App() {
       ) : null}
 
       {pendingDeletion ? (
-        <div className="fixed inset-x-4 bottom-[calc(5.8rem+env(safe-area-inset-bottom))] z-40 mx-auto max-w-md">
+        <div className="fixed inset-x-4 bottom-[calc(7rem+env(safe-area-inset-bottom))] z-40 mx-auto max-w-md">
           <div className="toast-enter flex items-center justify-between gap-3 rounded-3xl border border-white/8 bg-slate-900 px-4 py-3 text-sm text-white shadow-2xl">
             <span className="min-w-0 truncate">
               {pendingDeletion.kind === 'vehicle'
