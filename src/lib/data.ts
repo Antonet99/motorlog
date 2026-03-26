@@ -10,6 +10,7 @@ import {
   where,
   writeBatch,
 } from 'firebase/firestore';
+import type { WriteBatch } from 'firebase/firestore';
 import { db } from './firebase';
 import type {
   Expense,
@@ -546,42 +547,66 @@ export async function deleteVehicle(uid: string, vehicleId: string) {
     getDocs(query(getExpensesCollection(uid), where('vehicle_id', '==', vehicleId))),
   ]);
 
-  if (!linkedRefuelsSnapshot.empty) {
-    throw new Error('Elimina prima i rifornimenti collegati al veicolo.');
-  }
+  const operations: Array<(batch: WriteBatch) => void> = [];
+  const deletedRefuelsCount = linkedRefuelsSnapshot.size;
+  const deletedExpensesCount = linkedExpensesSnapshot.size;
 
-  if (!linkedExpensesSnapshot.empty) {
-    throw new Error('Elimina prima le spese collegate al veicolo.');
-  }
+  linkedRefuelsSnapshot.docs.forEach(documentSnapshot => {
+    operations.push(batch => {
+      batch.delete(documentSnapshot.ref);
+    });
+  });
 
-  if (!vehicleSnapshot.exists()) {
-    return;
-  }
+  linkedExpensesSnapshot.docs.forEach(documentSnapshot => {
+    operations.push(batch => {
+      batch.delete(documentSnapshot.ref);
+    });
+  });
 
-  const currentVehicle = parseVehicle(vehicleSnapshot.id, vehicleSnapshot.data());
+  if (vehicleSnapshot.exists()) {
+    const currentVehicle = parseVehicle(vehicleSnapshot.id, vehicleSnapshot.data());
 
-  if (!currentVehicle) {
-    await deleteDoc(vehicleRef);
-    return;
-  }
+    if (currentVehicle) {
+      const allVehicles = vehiclesSnapshot.docs
+        .map(document => parseVehicle(document.id, document.data()))
+        .filter((vehicle): vehicle is Vehicle => vehicle !== null);
+      const fallbackVehicle = chooseFallbackVehicle(allVehicles, vehicleId);
+      const now = new Date().toISOString();
 
-  const allVehicles = vehiclesSnapshot.docs
-    .map(document => parseVehicle(document.id, document.data()))
-    .filter((vehicle): vehicle is Vehicle => vehicle !== null);
-  const fallbackVehicle = chooseFallbackVehicle(allVehicles, vehicleId);
-  const batch = writeBatch(db);
-  const now = new Date().toISOString();
+      if (currentVehicle.is_active && fallbackVehicle) {
+        operations.push(batch => {
+          batch.update(doc(getVehiclesCollection(uid), fallbackVehicle.id), {
+            is_active: true,
+            updated_at: now,
+          });
+        });
+      }
+    }
 
-  batch.delete(vehicleRef);
-
-  if (currentVehicle.is_active && fallbackVehicle) {
-    batch.update(doc(getVehiclesCollection(uid), fallbackVehicle.id), {
-      is_active: true,
-      updated_at: now,
+    operations.push(batch => {
+      batch.delete(vehicleRef);
     });
   }
 
-  await batch.commit();
+  if (operations.length === 0) {
+    return {
+      deletedRefuelsCount,
+      deletedExpensesCount,
+    };
+  }
+
+  for (let index = 0; index < operations.length; index += 450) {
+    const batch = writeBatch(db);
+    operations.slice(index, index + 450).forEach(operation => {
+      operation(batch);
+    });
+    await batch.commit();
+  }
+
+  return {
+    deletedRefuelsCount,
+    deletedExpensesCount,
+  };
 }
 
 export async function createRefuel(input: RefuelInput) {

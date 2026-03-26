@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { User } from 'firebase/auth';
 import { onAuthStateChanged } from 'firebase/auth';
 import {
@@ -65,13 +65,18 @@ type ModalState =
   | null;
 
 type PendingDeletion =
-  | { kind: 'vehicle'; vehicle: Vehicle; timeoutId: number }
   | { kind: 'refuel'; refuel: Refuel; timeoutId: number }
   | { kind: 'expense'; expense: Expense; timeoutId: number };
 
 interface ToastState {
   message: string;
   tone: ToastTone;
+}
+
+interface VehicleDeletionConfirmState {
+  vehicle: Vehicle;
+  linkedRefuelsCount: number;
+  linkedExpensesCount: number;
 }
 
 const NAV_ITEMS: Array<{
@@ -171,6 +176,9 @@ export default function App() {
   const [pendingDeletion, setPendingDeletion] = useState<PendingDeletion | null>(
     null,
   );
+  const [vehicleDeletionConfirm, setVehicleDeletionConfirm] =
+    useState<VehicleDeletionConfirmState | null>(null);
+  const [isDeletingVehicle, setIsDeletingVehicle] = useState(false);
   const [isSwitchingVehicle, setIsSwitchingVehicle] = useState(false);
 
   useEffect(() => {
@@ -311,7 +319,8 @@ export default function App() {
   }, [pendingDeletion]);
 
   useEffect(() => {
-    const shouldLockScroll = isQuickAddOpen || modalState !== null;
+    const shouldLockScroll =
+      isQuickAddOpen || modalState !== null || vehicleDeletionConfirm !== null;
 
     if (!shouldLockScroll) {
       document.body.style.overflow = '';
@@ -322,12 +331,9 @@ export default function App() {
     return () => {
       document.body.style.overflow = '';
     };
-  }, [isQuickAddOpen, modalState]);
+  }, [isQuickAddOpen, modalState, vehicleDeletionConfirm]);
 
-  const visibleVehicles =
-    pendingDeletion?.kind === 'vehicle'
-      ? vehicles.filter(vehicle => vehicle.id !== pendingDeletion.vehicle.id)
-      : vehicles;
+  const visibleVehicles = vehicles;
   const visibleRefuels =
     pendingDeletion?.kind === 'refuel'
       ? refuels.filter(refuel => refuel.id !== pendingDeletion.refuel.id)
@@ -482,10 +488,7 @@ export default function App() {
 
   const commitDeletion = async (deletion: PendingDeletion) => {
     try {
-      if (deletion.kind === 'vehicle') {
-        await deleteVehicle(deletion.vehicle.uid, deletion.vehicle.id);
-        setToast({ message: 'Veicolo eliminato.', tone: 'info' });
-      } else if (deletion.kind === 'refuel') {
+      if (deletion.kind === 'refuel') {
         await deleteRefuel(deletion.refuel.uid, deletion.refuel.id);
         setToast({ message: 'Rifornimento eliminato.', tone: 'info' });
       } else {
@@ -513,13 +516,49 @@ export default function App() {
   };
 
   const handleDeleteVehicle = async (vehicle: Vehicle) => {
+    if (pendingDeletion) {
+      window.clearTimeout(pendingDeletion.timeoutId);
+      await commitDeletion(pendingDeletion);
+    }
+
     setModalState(null);
+    setVehicleDeletionConfirm({
+      vehicle,
+      linkedRefuelsCount: refuels.filter(refuel => refuel.vehicle_id === vehicle.id).length,
+      linkedExpensesCount: expenses.filter(expense => expense.vehicle_id === vehicle.id).length,
+    });
+  };
 
-    const timeoutId = window.setTimeout(() => {
-      void commitDeletion({ kind: 'vehicle', vehicle, timeoutId });
-    }, 4200);
+  const handleConfirmDeleteVehicle = async () => {
+    if (!vehicleDeletionConfirm) {
+      return;
+    }
 
-    await scheduleDeletion({ kind: 'vehicle', vehicle, timeoutId });
+    setIsDeletingVehicle(true);
+    setToast(null);
+
+    try {
+      const result = await deleteVehicle(
+        vehicleDeletionConfirm.vehicle.uid,
+        vehicleDeletionConfirm.vehicle.id,
+      );
+      const deletedLinkedRecords =
+        result.deletedRefuelsCount + result.deletedExpensesCount;
+
+      setVehicleDeletionConfirm(null);
+      setToast({
+        message:
+          deletedLinkedRecords > 0
+            ? `Veicolo eliminato con ${result.deletedRefuelsCount} rifornimenti e ${result.deletedExpensesCount} spese collegate.`
+            : 'Veicolo eliminato.',
+        tone: 'info',
+      });
+    } catch (error) {
+      console.error('Failed to delete vehicle', error);
+      setToast({ message: getReadableDataError(error), tone: 'error' });
+    } finally {
+      setIsDeletingVehicle(false);
+    }
   };
 
   const handleDeleteRefuel = async (refuel: Refuel) => {
@@ -858,15 +897,60 @@ export default function App() {
         />
       ) : null}
 
+      {vehicleDeletionConfirm ? (
+        <div className="fixed inset-0 z-50">
+          <button
+            type="button"
+            aria-label="Chiudi conferma eliminazione veicolo"
+            onClick={() => {
+              if (!isDeletingVehicle) {
+                setVehicleDeletionConfirm(null);
+              }
+            }}
+            className="absolute inset-0 bg-slate-950/84 backdrop-blur-sm"
+          />
+          <div className="absolute inset-x-4 top-1/2 mx-auto max-w-md -translate-y-1/2 rounded-[1.75rem] border border-white/8 bg-slate-950 p-5 shadow-[0_24px_70px_rgba(2,6,23,0.55)]">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-rose-300">
+              Elimina veicolo
+            </p>
+            <h2 className="mt-2 text-xl font-semibold text-white">
+              Elimina {vehicleDeletionConfirm.vehicle.name}?
+            </h2>
+            <p className="mt-3 text-sm leading-6 text-slate-300">
+              {vehicleDeletionConfirm.linkedRefuelsCount > 0 ||
+              vehicleDeletionConfirm.linkedExpensesCount > 0
+                ? `Questa azione elimina anche ${vehicleDeletionConfirm.linkedRefuelsCount} rifornimenti e ${vehicleDeletionConfirm.linkedExpensesCount} spese collegate. Non si puo annullare.`
+                : 'Questo veicolo verra eliminato definitivamente. Non si puo annullare.'}
+            </p>
+            <div className="mt-5 flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setVehicleDeletionConfirm(null)}
+                disabled={isDeletingVehicle}
+                className="inline-flex flex-1 items-center justify-center rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Annulla
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  void handleConfirmDeleteVehicle();
+                }}
+                disabled={isDeletingVehicle}
+                className="inline-flex flex-1 items-center justify-center rounded-2xl bg-rose-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-rose-400 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isDeletingVehicle ? 'Eliminazione...' : 'Elimina tutto'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {pendingDeletion ? (
         <div className="fixed inset-x-4 bottom-[calc(7.35rem+env(safe-area-inset-bottom))] z-40 mx-auto max-w-md">
           <div className="toast-enter flex items-center justify-between gap-3 rounded-3xl border border-white/8 bg-slate-900 px-4 py-3 text-sm text-white shadow-2xl">
             <span className="min-w-0 truncate">
-              {pendingDeletion.kind === 'vehicle'
-                ? 'Veicolo rimosso.'
-                : pendingDeletion.kind === 'refuel'
-                  ? 'Rifornimento rimosso.'
-                  : 'Spesa rimossa.'}
+              {pendingDeletion.kind === 'refuel' ? 'Rifornimento rimosso.' : 'Spesa rimossa.'}
             </span>
             <button
               type="button"
