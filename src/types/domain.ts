@@ -10,6 +10,14 @@ export const FUEL_TYPES = [
   'Elettrico',
 ] as const;
 
+export const FUEL_TYPE_OPTIONS = [
+  'Benzina',
+  'Diesel',
+  'Ibrido benzina',
+  'Ibrido diesel',
+  'Elettrico',
+] as const;
+
 export const EXPENSE_CATEGORIES = [
   'Rata',
   'Assicurazione',
@@ -18,6 +26,7 @@ export const EXPENSE_CATEGORIES = [
   'Tagliando',
   'Meccanico',
   'Pedaggio',
+  'Parcheggio',
   'Multa',
   'Accessori',
   'Altro',
@@ -87,5 +96,26 @@ export interface RefuelInput {
   date: string;
   is_full_tank: boolean;
   station: string | null;
+  notes: string | null;
+}
+
+export interface Expense {
+  id: string;
+  uid: string;
+  vehicle_id: string;
+  category: ExpenseCategory;
+  amount: number;
+  date: string;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ExpenseInput {
+  uid: string;
+  vehicle_id: string;
+  category: ExpenseCategory;
+  amount: number;
+  date: string;
   notes: string | null;
 }

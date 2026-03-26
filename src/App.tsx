@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { User } from 'firebase/auth';
 import { onAuthStateChanged } from 'firebase/auth';
 import {
   CarFront,
+  ChevronDown,
   CircleDollarSign,
   Fuel,
   Home,
@@ -12,11 +13,13 @@ import {
 } from 'lucide-react';
 import { AddEntryModal } from './components/AddEntryModal';
 import { AuthScreen } from './components/AuthScreen';
+import { BrandLogo } from './components/BrandLogo';
+import { downloadVehicleWorkbook } from './lib/export';
 import { isUsingFirebaseEmulators, localAuthEmail } from './lib/env';
 import {
   ACCESS_DENIED_MESSAGE,
-  ALLOWED_EMAIL,
   auth,
+  isAllowedEmail,
   consumeRedirectResult,
   ensureLocalSession,
   getReadableAuthError,
@@ -24,13 +27,18 @@ import {
   signInWithGoogle,
 } from './lib/firebase';
 import {
+  createExpense,
   createRefuel,
   createVehicle,
+  deleteExpense,
   deleteRefuel,
   deleteVehicle,
   getReadableDataError,
+  setActiveVehicle,
+  subscribeToExpenses,
   subscribeToRefuels,
   subscribeToVehicles,
+  updateExpense,
   updateRefuel,
   updateVehicle,
 } from './lib/data';
@@ -40,6 +48,8 @@ import { RefuelsSection } from './sections/RefuelsSection';
 import { VehiclesSection } from './sections/VehiclesSection';
 import type {
   AppTab,
+  Expense,
+  ExpenseInput,
   QuickAddType,
   Refuel,
   RefuelInput,
@@ -52,15 +62,22 @@ type ToastTone = 'success' | 'error' | 'info';
 type ModalState =
   | { kind: 'vehicle'; mode: 'create' | 'edit'; vehicle?: Vehicle | null }
   | { kind: 'refuel'; mode: 'create' | 'edit'; refuel?: Refuel | null }
+  | { kind: 'expense'; mode: 'create' | 'edit'; expense?: Expense | null }
   | null;
 
 type PendingDeletion =
-  | { kind: 'vehicle'; vehicle: Vehicle; timeoutId: number }
-  | { kind: 'refuel'; refuel: Refuel; timeoutId: number };
+  | { kind: 'refuel'; refuel: Refuel; timeoutId: number }
+  | { kind: 'expense'; expense: Expense; timeoutId: number };
 
 interface ToastState {
   message: string;
   tone: ToastTone;
+}
+
+interface VehicleDeletionConfirmState {
+  vehicle: Vehicle;
+  linkedRefuelsCount: number;
+  linkedExpensesCount: number;
 }
 
 const NAV_ITEMS: Array<{
@@ -120,37 +137,24 @@ const QUICK_ADD_OPTIONS: Array<{
   },
 ];
 
-function getSectionCopy(activeTab: AppTab) {
-  if (activeTab === 'vehicles') {
-    return {
-      eyebrow: 'Garage',
-      title: 'Veicoli',
-      description: 'Auto e moto salvate nel tuo garage personale.',
-    };
-  }
-
-  if (activeTab === 'refuels') {
-    return {
-      eyebrow: 'Carburante',
-      title: 'Rifornimenti',
-      description: 'Litri, costo e contachilometri degli ultimi movimenti.',
-    };
-  }
-
-  if (activeTab === 'expenses') {
-    return {
-      eyebrow: 'Costi',
-      title: 'Spese',
-      description: 'Assicurazione, bollo, manutenzione e altre uscite.',
-    };
-  }
-
-  return {
-    eyebrow: 'Riepilogo',
-    title: 'Dashboard',
-    description: "Garage, rifornimenti recenti e costo carburante a colpo d'occhio.",
-  };
-}
+const SECTION_COPY: Record<AppTab, { title: string; subtitle: string }> = {
+  overview: {
+    title: 'Riepilogo',
+    subtitle: "Garage, carburante e costi a colpo d'occhio.",
+  },
+  vehicles: {
+    title: 'Veicoli',
+    subtitle: 'Auto e moto del tuo garage.',
+  },
+  refuels: {
+    title: 'Rifornimenti',
+    subtitle: 'Litri, costo e contachilometri.',
+  },
+  expenses: {
+    title: 'Spese',
+    subtitle: 'Assicurazione, bollo e altre uscite.',
+  },
+};
 
 export default function App() {
   const hasAttemptedLocalSession = useRef(false);
@@ -162,8 +166,10 @@ export default function App() {
   );
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [refuels, setRefuels] = useState<Refuel[]>([]);
+  const [expenses, setExpenses] = useState<Expense[]>([]);
   const [isVehiclesReady, setIsVehiclesReady] = useState(false);
   const [isRefuelsReady, setIsRefuelsReady] = useState(false);
+  const [isExpensesReady, setIsExpensesReady] = useState(false);
   const [activeTab, setActiveTab] = useState<AppTab>('overview');
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
   const [modalState, setModalState] = useState<ModalState>(null);
@@ -171,6 +177,10 @@ export default function App() {
   const [pendingDeletion, setPendingDeletion] = useState<PendingDeletion | null>(
     null,
   );
+  const [vehicleDeletionConfirm, setVehicleDeletionConfirm] =
+    useState<VehicleDeletionConfirmState | null>(null);
+  const [isDeletingVehicle, setIsDeletingVehicle] = useState(false);
+  const [isSwitchingVehicle, setIsSwitchingVehicle] = useState(false);
 
   useEffect(() => {
     void consumeRedirectResult().catch(error => {
@@ -180,7 +190,7 @@ export default function App() {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, currentUser => {
-      if (currentUser && currentUser.email !== ALLOWED_EMAIL) {
+      if (currentUser && !isAllowedEmail(currentUser.email)) {
         setUser(null);
         setAuthError(ACCESS_DENIED_MESSAGE);
         setIsAuthReady(true);
@@ -230,8 +240,10 @@ export default function App() {
     if (!isAuthReady || !user) {
       setVehicles([]);
       setRefuels([]);
+      setExpenses([]);
       setIsVehiclesReady(false);
       setIsRefuelsReady(false);
+      setIsExpensesReady(false);
       return;
     }
 
@@ -265,9 +277,25 @@ export default function App() {
       },
     );
 
+    const unsubscribeExpenses = subscribeToExpenses(
+      user.uid,
+      nextExpenses => {
+        setExpenses(nextExpenses);
+        setIsExpensesReady(true);
+      },
+      error => {
+        console.error('Error fetching expenses', error);
+        setToast({
+          message: getReadableDataError(error),
+          tone: 'error',
+        });
+      },
+    );
+
     return () => {
       unsubscribeVehicles();
       unsubscribeRefuels();
+      unsubscribeExpenses();
     };
   }, [isAuthReady, user]);
 
@@ -292,7 +320,8 @@ export default function App() {
   }, [pendingDeletion]);
 
   useEffect(() => {
-    const shouldLockScroll = isQuickAddOpen || modalState !== null;
+    const shouldLockScroll =
+      isQuickAddOpen || modalState !== null || vehicleDeletionConfirm !== null;
 
     if (!shouldLockScroll) {
       document.body.style.overflow = '';
@@ -303,18 +332,26 @@ export default function App() {
     return () => {
       document.body.style.overflow = '';
     };
-  }, [isQuickAddOpen, modalState]);
+  }, [isQuickAddOpen, modalState, vehicleDeletionConfirm]);
 
-  const visibleVehicles =
-    pendingDeletion?.kind === 'vehicle'
-      ? vehicles.filter(vehicle => vehicle.id !== pendingDeletion.vehicle.id)
-      : vehicles;
+  const visibleVehicles = vehicles;
   const visibleRefuels =
     pendingDeletion?.kind === 'refuel'
       ? refuels.filter(refuel => refuel.id !== pendingDeletion.refuel.id)
       : refuels;
-  const activeVehicle = visibleVehicles.find(vehicle => vehicle.is_active) ?? null;
-  const sectionCopy = useMemo(() => getSectionCopy(activeTab), [activeTab]);
+  const visibleExpenses =
+    pendingDeletion?.kind === 'expense'
+      ? expenses.filter(expense => expense.id !== pendingDeletion.expense.id)
+      : expenses;
+  const activeVehicle =
+    visibleVehicles.find(vehicle => vehicle.is_active) ?? visibleVehicles[0] ?? null;
+  const filteredRefuels = activeVehicle
+    ? visibleRefuels.filter(refuel => refuel.vehicle_id === activeVehicle.id)
+    : visibleRefuels;
+  const filteredExpenses = activeVehicle
+    ? visibleExpenses.filter(expense => expense.vehicle_id === activeVehicle.id)
+    : visibleExpenses;
+  const sectionCopy = SECTION_COPY[activeTab];
 
   const closeModal = () => {
     setModalState(null);
@@ -350,6 +387,24 @@ export default function App() {
     }
   };
 
+  const handleSelectActiveVehicle = async (vehicleId: string) => {
+    if (!user || !vehicleId || vehicleId === activeVehicle?.id) {
+      return;
+    }
+
+    setIsSwitchingVehicle(true);
+
+    try {
+      await setActiveVehicle(user.uid, vehicleId);
+      setToast({ message: 'Veicolo attivo aggiornato.', tone: 'success' });
+    } catch (error) {
+      console.error('Failed to switch active vehicle', error);
+      setToast({ message: getReadableDataError(error), tone: 'error' });
+    } finally {
+      setIsSwitchingVehicle(false);
+    }
+  };
+
   const openCreateVehicleModal = () => {
     setModalState({ kind: 'vehicle', mode: 'create' });
     setActiveTab('vehicles');
@@ -366,6 +421,19 @@ export default function App() {
 
     setModalState({ kind: 'refuel', mode: 'create' });
     setActiveTab('refuels');
+  };
+
+  const openCreateExpenseModal = () => {
+    if (visibleVehicles.length === 0) {
+      setToast({
+        message: 'Aggiungi prima un veicolo.',
+        tone: 'info',
+      });
+      return;
+    }
+
+    setModalState({ kind: 'expense', mode: 'create' });
+    setActiveTab('expenses');
   };
 
   const handleCreateVehicle = async (input: VehicleInput) => {
@@ -385,6 +453,20 @@ export default function App() {
     setToast({ message: 'Veicolo aggiornato.', tone: 'success' });
   };
 
+  const handleExportVehicle = (vehicle: Vehicle) => {
+    try {
+      downloadVehicleWorkbook(
+        vehicle,
+        visibleRefuels.filter(refuel => refuel.vehicle_id === vehicle.id),
+        visibleExpenses.filter(expense => expense.vehicle_id === vehicle.id),
+      );
+      setToast({ message: `Export XLSX pronto per ${vehicle.name}.`, tone: 'success' });
+    } catch (error) {
+      console.error('Failed to export vehicle workbook', error);
+      setToast({ message: 'Export XLSX non riuscito. Riprova.', tone: 'error' });
+    }
+  };
+
   const handleCreateRefuel = async (input: RefuelInput) => {
     await createRefuel(input);
     setModalState(null);
@@ -402,14 +484,31 @@ export default function App() {
     setToast({ message: 'Rifornimento aggiornato.', tone: 'success' });
   };
 
+  const handleCreateExpense = async (input: ExpenseInput) => {
+    await createExpense(input);
+    setModalState(null);
+    setActiveTab('expenses');
+    setToast({ message: 'Spesa salvata.', tone: 'success' });
+  };
+
+  const handleUpdateExpense = async (input: ExpenseInput) => {
+    if (modalState?.kind !== 'expense' || modalState.mode !== 'edit' || !modalState.expense) {
+      return;
+    }
+
+    await updateExpense(modalState.expense.id, input);
+    setModalState(null);
+    setToast({ message: 'Spesa aggiornata.', tone: 'success' });
+  };
+
   const commitDeletion = async (deletion: PendingDeletion) => {
     try {
-      if (deletion.kind === 'vehicle') {
-        await deleteVehicle(deletion.vehicle.uid, deletion.vehicle.id);
-        setToast({ message: 'Veicolo eliminato.', tone: 'info' });
-      } else {
+      if (deletion.kind === 'refuel') {
         await deleteRefuel(deletion.refuel.uid, deletion.refuel.id);
         setToast({ message: 'Rifornimento eliminato.', tone: 'info' });
+      } else {
+        await deleteExpense(deletion.expense.uid, deletion.expense.id);
+        setToast({ message: 'Spesa eliminata.', tone: 'info' });
       }
     } catch (error) {
       console.error('Failed to delete entry', error);
@@ -432,13 +531,49 @@ export default function App() {
   };
 
   const handleDeleteVehicle = async (vehicle: Vehicle) => {
+    if (pendingDeletion) {
+      window.clearTimeout(pendingDeletion.timeoutId);
+      await commitDeletion(pendingDeletion);
+    }
+
     setModalState(null);
+    setVehicleDeletionConfirm({
+      vehicle,
+      linkedRefuelsCount: refuels.filter(refuel => refuel.vehicle_id === vehicle.id).length,
+      linkedExpensesCount: expenses.filter(expense => expense.vehicle_id === vehicle.id).length,
+    });
+  };
 
-    const timeoutId = window.setTimeout(() => {
-      void commitDeletion({ kind: 'vehicle', vehicle, timeoutId });
-    }, 4200);
+  const handleConfirmDeleteVehicle = async () => {
+    if (!vehicleDeletionConfirm) {
+      return;
+    }
 
-    await scheduleDeletion({ kind: 'vehicle', vehicle, timeoutId });
+    setIsDeletingVehicle(true);
+    setToast(null);
+
+    try {
+      const result = await deleteVehicle(
+        vehicleDeletionConfirm.vehicle.uid,
+        vehicleDeletionConfirm.vehicle.id,
+      );
+      const deletedLinkedRecords =
+        result.deletedRefuelsCount + result.deletedExpensesCount;
+
+      setVehicleDeletionConfirm(null);
+      setToast({
+        message:
+          deletedLinkedRecords > 0
+            ? `Veicolo eliminato con ${result.deletedRefuelsCount} rifornimenti e ${result.deletedExpensesCount} spese collegate.`
+            : 'Veicolo eliminato.',
+        tone: 'info',
+      });
+    } catch (error) {
+      console.error('Failed to delete vehicle', error);
+      setToast({ message: getReadableDataError(error), tone: 'error' });
+    } finally {
+      setIsDeletingVehicle(false);
+    }
   };
 
   const handleDeleteRefuel = async (refuel: Refuel) => {
@@ -449,6 +584,16 @@ export default function App() {
     }, 4200);
 
     await scheduleDeletion({ kind: 'refuel', refuel, timeoutId });
+  };
+
+  const handleDeleteExpense = async (expense: Expense) => {
+    setModalState(null);
+
+    const timeoutId = window.setTimeout(() => {
+      void commitDeletion({ kind: 'expense', expense, timeoutId });
+    }, 4200);
+
+    await scheduleDeletion({ kind: 'expense', expense, timeoutId });
   };
 
   const handleUndoDelete = () => {
@@ -474,10 +619,7 @@ export default function App() {
       return;
     }
 
-    setToast({
-      message: 'Le spese arrivano nel prossimo slice.',
-      tone: 'info',
-    });
+    openCreateExpenseModal();
   };
 
   if (!isAuthReady || (isUsingFirebaseEmulators && !user && isPreparingLocalMode)) {
@@ -538,59 +680,93 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-[100dvh] bg-[radial-gradient(circle_at_top,_rgba(14,165,233,0.08),_transparent_34%),linear-gradient(180deg,_#020617_0%,_#0f172a_48%,_#111827_100%)] pb-[calc(7.75rem+env(safe-area-inset-bottom))] text-slate-50">
+    <div className="min-h-[100dvh] bg-transparent pb-[calc(6.25rem+env(safe-area-inset-bottom))] text-slate-50">
       <header className="sticky top-0 z-20 border-b border-white/6 bg-slate-950/88 backdrop-blur">
         <div className="h-[env(safe-area-inset-top)]" />
-        <div className="mx-auto flex max-w-md items-center justify-between gap-4 px-4 py-4">
-          <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
-              {sectionCopy.eyebrow}
-            </p>
-            <h1 className="mt-1 text-2xl font-semibold tracking-tight text-white">
-              {sectionCopy.title}
-            </h1>
-            <p className="mt-1 text-sm text-slate-400">{sectionCopy.description}</p>
+        <div className="mx-auto max-w-md px-4 pb-2 pt-2">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                Motorlog
+              </p>
+              <h1 className="mt-1 text-[1.35rem] font-semibold tracking-tight text-white">
+                {sectionCopy.title}
+              </h1>
+              <p className="mt-0.5 text-xs text-slate-400">{sectionCopy.subtitle}</p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {isUsingFirebaseEmulators ? (
+                <div className="rounded-full border border-sky-400/20 bg-sky-500/12 px-2.5 py-1.5 text-right">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-sky-300">
+                    Demo
+                  </p>
+                  <p className="text-[11px] font-medium text-sky-100">Emulator</p>
+                </div>
+              ) : null}
+              {isUsingFirebaseEmulators ? null : (
+                <button
+                  type="button"
+                  onClick={handleLogOut}
+                  className="rounded-full border border-white/10 bg-white/5 p-2 text-slate-300 transition hover:bg-white/10"
+                  title="Esci"
+                >
+                  <LogOut className="h-4 w-4" />
+                </button>
+              )}
+            </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            {isUsingFirebaseEmulators ? (
-              <div className="rounded-full border border-sky-400/20 bg-sky-500/12 px-3 py-2 text-right">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-sky-300">
-                  Demo locale
+          {visibleVehicles.length > 0 ? (
+            <div className="mt-2 flex items-center gap-2 rounded-[1.05rem] border border-white/8 bg-white/5 px-3 py-1.5">
+              {activeVehicle ? (
+                <BrandLogo
+                  brand={activeVehicle.brand}
+                  vehicleType={activeVehicle.vehicle_type}
+                  size="sm"
+                />
+              ) : (
+                <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-white/8 bg-slate-950/70 text-slate-300">
+                  <CarFront className="h-4 w-4" />
+                </span>
+              )}
+              <div className="relative min-w-0 flex-1">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                  Veicolo selezionato
                 </p>
-                <p className="max-w-[7.5rem] truncate text-sm font-medium text-sky-100">
-                  Emulator
-                </p>
+                <select
+                  value={activeVehicle?.id ?? ''}
+                  onChange={event => {
+                    void handleSelectActiveVehicle(event.target.value);
+                  }}
+                  disabled={isSwitchingVehicle}
+                  className="mt-0.5 w-full appearance-none bg-transparent pr-6 text-sm font-medium text-white outline-none disabled:cursor-not-allowed disabled:text-slate-500"
+                >
+                  {visibleVehicles.map(vehicle => (
+                    <option
+                      key={vehicle.id}
+                      value={vehicle.id}
+                      className="bg-slate-950 text-white"
+                    >
+                      {vehicle.name}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-0 top-[0.95rem] h-4 w-4 text-slate-500" />
               </div>
-            ) : null}
-            {activeVehicle ? (
-              <div className="hidden rounded-full border border-white/10 bg-white/5 px-3 py-2 text-right sm:block">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-                  Attivo
-                </p>
-                <p className="max-w-[7.5rem] truncate text-sm font-medium text-white">
-                  {activeVehicle.name}
-                </p>
-              </div>
-            ) : null}
-            {isUsingFirebaseEmulators ? null : (
-              <button
-                type="button"
-                onClick={handleLogOut}
-                className="rounded-full border border-white/10 bg-white/5 p-2.5 text-slate-300 transition hover:bg-white/10"
-                title="Esci"
-              >
-                <LogOut className="h-4 w-4" />
-              </button>
-            )}
-          </div>
+            </div>
+          ) : null}
         </div>
       </header>
 
-      <main className="mx-auto max-w-md space-y-4 px-4 py-4">
+      <main className="mx-auto max-w-md space-y-3 px-4 py-3">
         <div key={activeTab} className="section-enter">
           {activeTab === 'overview' ? (
-            <OverviewSection vehicles={visibleVehicles} refuels={visibleRefuels} />
+            <OverviewSection
+              vehicles={visibleVehicles}
+              refuels={filteredRefuels}
+              expenses={filteredExpenses}
+            />
           ) : activeTab === 'vehicles' ? (
             <VehiclesSection
               vehicles={visibleVehicles}
@@ -599,11 +775,12 @@ export default function App() {
               onEditVehicle={vehicle =>
                 setModalState({ kind: 'vehicle', mode: 'edit', vehicle })
               }
+              onExportVehicle={handleExportVehicle}
             />
           ) : activeTab === 'refuels' ? (
             <RefuelsSection
               vehicles={visibleVehicles}
-              refuels={visibleRefuels}
+              refuels={filteredRefuels}
               isLoading={!isRefuelsReady}
               onAddRefuel={openCreateRefuelModal}
               onEditRefuel={refuel =>
@@ -611,13 +788,21 @@ export default function App() {
               }
             />
           ) : (
-            <ExpensesSection />
+            <ExpensesSection
+              vehicles={visibleVehicles}
+              expenses={filteredExpenses}
+              isLoading={!isExpensesReady}
+              onAddExpense={openCreateExpenseModal}
+              onEditExpense={expense =>
+                setModalState({ kind: 'expense', mode: 'edit', expense })
+              }
+            />
           )}
         </div>
       </main>
 
-      <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-white/8 bg-slate-950/92 backdrop-blur">
-        <div className="mx-auto flex max-w-md items-center justify-between gap-1 px-3 pb-[calc(0.85rem+env(safe-area-inset-bottom))] pt-3">
+      <nav className="fixed inset-x-0 bottom-[calc(0.55rem+env(safe-area-inset-bottom))] z-20 px-4">
+        <div className="mx-auto flex max-w-md items-center justify-between gap-1 rounded-[1.7rem] border border-white/8 bg-slate-950/92 px-2 py-1.5 shadow-[0_22px_50px_rgba(2,6,23,0.45)] backdrop-blur">
           {NAV_ITEMS.map(item => {
             const Icon = item.icon;
             const isActive = item.tab === activeTab;
@@ -627,14 +812,14 @@ export default function App() {
                 key={item.tab}
                 type="button"
                 onClick={() => setActiveTab(item.tab)}
-                className={`flex min-w-0 flex-1 flex-col items-center gap-1 rounded-2xl px-2 py-2.5 text-xs font-medium transition ${
+                className={`flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-[1rem] px-0.5 py-1.5 text-[8px] leading-tight font-medium transition ${
                   isActive
                     ? item.activeClassName
                     : 'text-slate-500 hover:bg-white/5 hover:text-slate-200'
                 }`}
               >
-                <Icon className="h-4 w-4" />
-                <span className="truncate">{item.label}</span>
+                <Icon className="h-3.5 w-3.5" />
+                <span className="block w-full truncate">{item.label}</span>
               </button>
             );
           })}
@@ -644,9 +829,9 @@ export default function App() {
       <button
         type="button"
         onClick={() => setIsQuickAddOpen(current => !current)}
-        className="fixed bottom-[calc(5.85rem+env(safe-area-inset-bottom))] right-4 z-30 inline-flex h-14 w-14 items-center justify-center rounded-full bg-sky-500 text-slate-950 shadow-[0_18px_40px_rgba(14,165,233,0.35)] transition hover:bg-sky-400 active:scale-[0.97]"
+        className="fixed bottom-[calc(6.2rem+env(safe-area-inset-bottom))] right-4 z-30 inline-flex h-[3.25rem] w-[3.25rem] items-center justify-center rounded-full bg-sky-500 text-slate-950 shadow-[0_18px_40px_rgba(14,165,233,0.35)] transition-all duration-300 hover:bg-sky-400 active:scale-[0.97]"
       >
-        {isQuickAddOpen ? <X className="h-6 w-6" /> : <Plus className="h-6 w-6" />}
+        {isQuickAddOpen ? <X className="h-[1.65rem] w-[1.65rem]" /> : <Plus className="h-[1.65rem] w-[1.65rem]" />}
       </button>
 
       {isQuickAddOpen ? (
@@ -657,13 +842,13 @@ export default function App() {
             onClick={() => setIsQuickAddOpen(false)}
             className="quick-add-overlay z-20"
           />
-          <div className="quick-add-enter fixed bottom-[calc(10.5rem+env(safe-area-inset-bottom))] right-4 z-30 flex flex-col items-end gap-2">
+          <div className="quick-add-enter fixed bottom-[calc(10rem+env(safe-area-inset-bottom))] right-4 z-30 flex flex-col items-end gap-2">
             {QUICK_ADD_OPTIONS.map(option => (
               <button
                 key={option.type}
                 type="button"
                 onClick={() => handleQuickAddSelection(option.type)}
-                className={`rounded-full border px-5 py-3 text-base font-semibold transition hover:scale-[1.02] ${option.accentClassName}`}
+                className={`rounded-full border px-4 py-2.5 text-sm font-semibold transition hover:scale-[1.02] ${option.accentClassName}`}
               >
                 {option.label}
               </button>
@@ -709,13 +894,79 @@ export default function App() {
         />
       ) : null}
 
+      {modalState?.kind === 'expense' ? (
+        <AddEntryModal
+          entryType="expense"
+          uid={user.uid}
+          mode={modalState.mode}
+          expense={modalState.expense}
+          vehicles={visibleVehicles}
+          onClose={closeModal}
+          onDelete={
+            modalState.mode === 'edit' && modalState.expense
+              ? () => handleDeleteExpense(modalState.expense)
+              : undefined
+          }
+          onSubmit={
+            modalState.mode === 'create' ? handleCreateExpense : handleUpdateExpense
+          }
+        />
+      ) : null}
+
+      {vehicleDeletionConfirm ? (
+        <div className="fixed inset-0 z-50">
+          <button
+            type="button"
+            aria-label="Chiudi conferma eliminazione veicolo"
+            onClick={() => {
+              if (!isDeletingVehicle) {
+                setVehicleDeletionConfirm(null);
+              }
+            }}
+            className="absolute inset-0 bg-slate-950/84 backdrop-blur-sm"
+          />
+          <div className="absolute inset-x-4 top-1/2 mx-auto max-w-md -translate-y-1/2 rounded-[1.75rem] border border-white/8 bg-slate-950 p-5 shadow-[0_24px_70px_rgba(2,6,23,0.55)]">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-rose-300">
+              Elimina veicolo
+            </p>
+            <h2 className="mt-2 text-xl font-semibold text-white">
+              Elimina {vehicleDeletionConfirm.vehicle.name}?
+            </h2>
+            <p className="mt-3 text-sm leading-6 text-slate-300">
+              {vehicleDeletionConfirm.linkedRefuelsCount > 0 ||
+              vehicleDeletionConfirm.linkedExpensesCount > 0
+                ? 'Eliminera anche tutti i rifornimenti e le spese collegate. Questa azione non si puo annullare.'
+                : 'Questo veicolo verra eliminato definitivamente. Questa azione non si puo annullare.'}
+            </p>
+            <div className="mt-5 flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setVehicleDeletionConfirm(null)}
+                disabled={isDeletingVehicle}
+                className="inline-flex flex-1 items-center justify-center rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Annulla
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  void handleConfirmDeleteVehicle();
+                }}
+                disabled={isDeletingVehicle}
+                className="inline-flex flex-1 items-center justify-center rounded-2xl bg-rose-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-rose-400 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isDeletingVehicle ? 'Eliminazione...' : 'Elimina tutto'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {pendingDeletion ? (
-        <div className="fixed inset-x-4 bottom-[calc(6.25rem+env(safe-area-inset-bottom))] z-40 mx-auto max-w-md">
+        <div className="fixed inset-x-4 bottom-[calc(7.35rem+env(safe-area-inset-bottom))] z-40 mx-auto max-w-md">
           <div className="toast-enter flex items-center justify-between gap-3 rounded-3xl border border-white/8 bg-slate-900 px-4 py-3 text-sm text-white shadow-2xl">
             <span className="min-w-0 truncate">
-              {pendingDeletion.kind === 'vehicle'
-                ? 'Veicolo rimosso.'
-                : 'Rifornimento rimosso.'}
+              {pendingDeletion.kind === 'refuel' ? 'Rifornimento rimosso.' : 'Spesa rimossa.'}
             </span>
             <button
               type="button"

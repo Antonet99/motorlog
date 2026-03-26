@@ -23,7 +23,7 @@ export function AuthScreen({ onSignIn, errorMessage }: AuthScreenProps) {
             </h1>
             <p className="text-sm leading-6 text-slate-300">
               Tracker personale per veicoli, rifornimenti e spese essenziali.
-              Accesso limitato al tuo account Google autorizzato.
+              Accesso limitato agli account Google autorizzati.
             </p>
           </div>
           {errorMessage ? (

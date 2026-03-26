@@ -20,9 +20,18 @@ import {
   localAuthPassword,
 } from './env';
 
-export const ALLOWED_EMAIL = 'antoniobaio90@gmail.com';
+export const ALLOWED_EMAILS = [
+  'antoniobaio90@gmail.com',
+  'matteomoretti927@gmail.com',
+] as const;
 export const ACCESS_DENIED_MESSAGE =
-  'Accesso consentito solo a antoniobaio90@gmail.com.';
+  'Accesso consentito solo agli account autorizzati.';
+
+const allowedEmailSet = new Set<string>(ALLOWED_EMAILS);
+
+export function isAllowedEmail(email: string | null | undefined) {
+  return typeof email === 'string' && allowedEmailSet.has(email);
+}
 
 function mapAuthErrorMessage(error: unknown) {
   if (!(error instanceof Error)) {
@@ -101,7 +110,7 @@ export async function signInWithGoogle() {
   try {
     const result = await signInWithPopup(auth, googleProvider);
 
-    if (result.user.email !== ALLOWED_EMAIL) {
+    if (!isAllowedEmail(result.user.email)) {
       await signOut(auth);
       throw new Error(ACCESS_DENIED_MESSAGE);
     }
@@ -129,7 +138,7 @@ export async function consumeRedirectResult() {
       return null;
     }
 
-    if (result.user.email !== ALLOWED_EMAIL) {
+    if (!isAllowedEmail(result.user.email)) {
       await signOut(auth);
       throw new Error(ACCESS_DENIED_MESSAGE);
     }
@@ -151,7 +160,7 @@ export async function ensureLocalSession() {
     );
   }
 
-  if (auth.currentUser?.email === localAuthEmail) {
+  if (isAllowedEmail(auth.currentUser?.email) && auth.currentUser?.email === localAuthEmail) {
     return auth.currentUser;
   }
 
@@ -162,7 +171,7 @@ export async function ensureLocalSession() {
       localAuthPassword,
     );
 
-    if (result.user.email !== ALLOWED_EMAIL) {
+    if (!isAllowedEmail(result.user.email)) {
       await signOut(auth);
       throw new Error(ACCESS_DENIED_MESSAGE);
     }

@@ -8,7 +8,10 @@ service cloud.firestore {
 
     function isAllowedUser() {
       return isSignedIn() &&
-             request.auth.token.email == 'antoniobaio90@gmail.com';
+             request.auth.token.email in [
+               'antoniobaio90@gmail.com',
+               'matteomoretti927@gmail.com'
+             ];
     }
 
     function isOwner(userId) {
@@ -45,6 +48,22 @@ service cloud.firestore {
         'Ibrido benzina',
         'Ibrido diesel',
         'Elettrico'
+      ];
+    }
+
+    function isExpenseCategory(value) {
+      return value in [
+        'Rata',
+        'Assicurazione',
+        'Bollo',
+        'Revisione',
+        'Tagliando',
+        'Meccanico',
+        'Pedaggio',
+        'Parcheggio',
+        'Multa',
+        'Accessori',
+        'Altro'
       ];
     }
 
@@ -153,6 +172,38 @@ service cloud.firestore {
              isDateString(data.updated_at);
     }
 
+    function isValidExpense(data, userId) {
+      return data.keys().hasOnly([
+               'uid',
+               'vehicle_id',
+               'category',
+               'amount',
+               'date',
+               'notes',
+               'created_at',
+               'updated_at'
+             ]) &&
+             data.keys().hasAll([
+               'uid',
+               'vehicle_id',
+               'category',
+               'amount',
+               'date',
+               'created_at',
+               'updated_at'
+             ]) &&
+             data.uid == userId &&
+             vehicleExists(userId, data.vehicle_id) &&
+             isExpenseCategory(data.category) &&
+             data.amount is number &&
+             data.amount > 0 &&
+             data.amount < 50000 &&
+             isDayString(data.date) &&
+             isOptionalString(data.notes, 500) &&
+             isDateString(data.created_at) &&
+             isDateString(data.updated_at);
+    }
+
     match /users/{userId}/vehicles/{vehicleId} {
       allow read, delete: if isOwner(userId);
       allow create: if isOwner(userId) &&
@@ -176,7 +227,14 @@ service cloud.firestore {
     }
 
     match /users/{userId}/expenses/{expenseId} {
-      allow read, write: if false;
+      allow read, delete: if isOwner(userId);
+      allow create: if isOwner(userId) &&
+                      request.resource.data.uid == request.auth.uid &&
+                      isValidExpense(request.resource.data, userId);
+      allow update: if isOwner(userId) &&
+                      resource.data.uid == request.auth.uid &&
+                      request.resource.data.uid == resource.data.uid &&
+                      isValidExpense(request.resource.data, userId);
     }
   }
 }

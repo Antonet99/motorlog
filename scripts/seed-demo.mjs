@@ -46,6 +46,12 @@ function getNow(offsetMinutes = 0) {
   return new Date(Date.now() + offsetMinutes * 60_000).toISOString();
 }
 
+function getDay(offsetDays = 0) {
+  return new Date(Date.now() + offsetDays * 24 * 60 * 60_000)
+    .toISOString()
+    .slice(0, 10);
+}
+
 async function replaceCollection(collectionRef, documents) {
   const existingSnapshot = await collectionRef.get();
 
@@ -187,6 +193,106 @@ async function seedDemoVehicles() {
   ]);
 }
 
+async function seedDemoRefuels(userRef) {
+  await replaceCollection(userRef.collection('refuels'), [
+    {
+      id: 'refuel-panda-older-full',
+      data: {
+        uid: DEFAULT_UID,
+        vehicle_id: 'fiat-panda',
+        liters: 30.8,
+        total_cost: 55.75,
+        price_per_liter: 1.81,
+        odometer_km: 47820,
+        date: getDay(-18),
+        is_full_tank: true,
+        station: 'IP',
+        notes: null,
+        created_at: getNow(-260),
+        updated_at: getNow(-260),
+      },
+    },
+    {
+      id: 'refuel-fiat-panda-latest',
+      data: {
+        uid: DEFAULT_UID,
+        vehicle_id: 'fiat-panda',
+        liters: 28.4,
+        total_cost: 51.69,
+        price_per_liter: 1.82,
+        odometer_km: 48210,
+        date: getDay(-3),
+        is_full_tank: true,
+        station: 'Eni',
+        notes: 'Pieno prima del weekend',
+        created_at: getNow(-72),
+        updated_at: getNow(-72),
+      },
+    },
+    {
+      id: 'refuel-golf-diesel',
+      data: {
+        uid: DEFAULT_UID,
+        vehicle_id: 'volkswagen-golf',
+        liters: 36.1,
+        total_cost: 63.72,
+        price_per_liter: 1.765,
+        odometer_km: 123540,
+        date: getDay(-11),
+        is_full_tank: false,
+        station: 'Q8',
+        notes: null,
+        created_at: getNow(-180),
+        updated_at: getNow(-180),
+      },
+    },
+  ]);
+}
+
+async function seedDemoExpenses(userRef) {
+  await replaceCollection(userRef.collection('expenses'), [
+    {
+      id: 'expense-insurance-panda',
+      data: {
+        uid: DEFAULT_UID,
+        vehicle_id: 'fiat-panda',
+        category: 'Assicurazione',
+        amount: 418.5,
+        date: getDay(-20),
+        notes: 'Rinnovo annuale',
+        created_at: getNow(-320),
+        updated_at: getNow(-320),
+      },
+    },
+    {
+      id: 'expense-service-xmax',
+      data: {
+        uid: DEFAULT_UID,
+        vehicle_id: 'yamaha-xmax-300',
+        category: 'Tagliando',
+        amount: 126,
+        date: getDay(-6),
+        notes: 'Cambio olio e filtro',
+        created_at: getNow(-140),
+        updated_at: getNow(-140),
+      },
+    },
+    {
+      id: 'expense-parking-panda',
+      data: {
+        uid: DEFAULT_UID,
+        vehicle_id: 'fiat-panda',
+        category: 'Parcheggio',
+        amount: 14,
+        date: getDay(-1),
+        notes: 'Centro citta',
+        created_at: getNow(-18),
+        updated_at: getNow(-18),
+      },
+    },
+  ]);
+}
+
 async function seedSupportingCollections() {
   const userRef = db.collection('users').doc(DEFAULT_UID);
 
@@ -198,8 +304,8 @@ async function seedSupportingCollections() {
     { merge: true },
   );
 
-  await replaceCollection(userRef.collection('refuels'), []);
-  await replaceCollection(userRef.collection('expenses'), []);
+  await seedDemoRefuels(userRef);
+  await seedDemoExpenses(userRef);
 }
 
 async function main() {
