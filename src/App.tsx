@@ -632,13 +632,13 @@ export default function App() {
         <div className="mx-auto max-w-md px-4 pb-2 pt-2">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
                 Motorlog
               </p>
-              <h1 className="mt-1 text-[1.25rem] font-semibold tracking-tight text-white">
+              <h1 className="mt-1 text-[1.35rem] font-semibold tracking-tight text-white">
                 {sectionCopy.title}
               </h1>
-              <p className="mt-0.5 text-[11px] text-slate-400">{sectionCopy.subtitle}</p>
+              <p className="mt-0.5 text-xs text-slate-400">{sectionCopy.subtitle}</p>
             </div>
 
             <div className="flex items-center gap-2">
@@ -677,7 +677,7 @@ export default function App() {
                 </span>
               )}
               <div className="relative min-w-0 flex-1">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
                   Veicolo selezionato
                 </p>
                 <select
@@ -686,7 +686,7 @@ export default function App() {
                     void handleSelectActiveVehicle(event.target.value);
                   }}
                   disabled={isSwitchingVehicle}
-                  className="mt-0.5 w-full appearance-none bg-transparent pr-6 text-[13px] font-medium text-white outline-none disabled:cursor-not-allowed disabled:text-slate-500"
+                  className="mt-0.5 w-full appearance-none bg-transparent pr-6 text-sm font-medium text-white outline-none disabled:cursor-not-allowed disabled:text-slate-500"
                 >
                   {visibleVehicles.map(vehicle => (
                     <option
@@ -757,14 +757,14 @@ export default function App() {
                 key={item.tab}
                 type="button"
                 onClick={() => setActiveTab(item.tab)}
-                className={`flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-[1rem] px-1 py-1.5 text-[9px] font-medium transition ${
+                className={`flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-[1rem] px-0.5 py-1.5 text-[8px] leading-tight font-medium transition ${
                   isActive
                     ? item.activeClassName
                     : 'text-slate-500 hover:bg-white/5 hover:text-slate-200'
                 }`}
               >
                 <Icon className="h-3.5 w-3.5" />
-                <span className="truncate">{item.label}</span>
+                <span className="block w-full truncate">{item.label}</span>
               </button>
             );
           })}
@@ -774,9 +774,9 @@ export default function App() {
       <button
         type="button"
         onClick={() => setIsQuickAddOpen(current => !current)}
-        className="fixed bottom-[calc(6.1rem+env(safe-area-inset-bottom))] right-4 z-30 inline-flex h-12 w-12 items-center justify-center rounded-full bg-sky-500 text-slate-950 shadow-[0_18px_40px_rgba(14,165,233,0.35)] transition-all duration-300 hover:bg-sky-400 active:scale-[0.97]"
+        className="fixed bottom-[calc(6.2rem+env(safe-area-inset-bottom))] right-4 z-30 inline-flex h-[3.25rem] w-[3.25rem] items-center justify-center rounded-full bg-sky-500 text-slate-950 shadow-[0_18px_40px_rgba(14,165,233,0.35)] transition-all duration-300 hover:bg-sky-400 active:scale-[0.97]"
       >
-        {isQuickAddOpen ? <X className="h-6 w-6" /> : <Plus className="h-6 w-6" />}
+        {isQuickAddOpen ? <X className="h-[1.65rem] w-[1.65rem]" /> : <Plus className="h-[1.65rem] w-[1.65rem]" />}
       </button>
 
       {isQuickAddOpen ? (
@@ -787,7 +787,7 @@ export default function App() {
             onClick={() => setIsQuickAddOpen(false)}
             className="quick-add-overlay z-20"
           />
-          <div className="quick-add-enter fixed bottom-[calc(9.5rem+env(safe-area-inset-bottom))] right-4 z-30 flex flex-col items-end gap-2">
+          <div className="quick-add-enter fixed bottom-[calc(10rem+env(safe-area-inset-bottom))] right-4 z-30 flex flex-col items-end gap-2">
             {QUICK_ADD_OPTIONS.map(option => (
               <button
                 key={option.type}
@@ -859,7 +859,7 @@ export default function App() {
       ) : null}
 
       {pendingDeletion ? (
-        <div className="fixed inset-x-4 bottom-[calc(7rem+env(safe-area-inset-bottom))] z-40 mx-auto max-w-md">
+        <div className="fixed inset-x-4 bottom-[calc(7.35rem+env(safe-area-inset-bottom))] z-40 mx-auto max-w-md">
           <div className="toast-enter flex items-center justify-between gap-3 rounded-3xl border border-white/8 bg-slate-900 px-4 py-3 text-sm text-white shadow-2xl">
             <span className="min-w-0 truncate">
               {pendingDeletion.kind === 'vehicle'

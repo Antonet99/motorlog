@@ -79,42 +79,42 @@ export function OverviewSection({ vehicles, refuels, expenses }: OverviewSection
   const monthlyMovements = refuelsThisMonth.length + expensesThisMonth.length;
 
   return (
-    <section className="space-y-3">
-      <div className="grid grid-cols-2 gap-2.5">
-        <div className="rounded-[1.25rem] border border-white/8 bg-slate-900/80 p-3">
+    <section className="space-y-3.5">
+      <div className="grid grid-cols-2 gap-3">
+        <div className="rounded-[1.3rem] border border-white/8 bg-slate-900/80 p-3.5">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] text-slate-400">Movimenti mensili</span>
+            <span className="text-xs text-slate-400">Movimenti mensili</span>
             <Gauge className="h-4 w-4 text-sky-300" />
           </div>
-          <p className="mt-2.5 text-lg font-semibold text-white">{monthlyMovements}</p>
+          <p className="mt-3 text-xl font-semibold text-white">{monthlyMovements}</p>
         </div>
 
-        <div className="rounded-[1.25rem] border border-white/8 bg-slate-900/80 p-3">
+        <div className="rounded-[1.3rem] border border-white/8 bg-slate-900/80 p-3.5">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] text-slate-400">Carburante mensile</span>
+            <span className="text-xs text-slate-400">Carburante mensile</span>
             <Fuel className="h-4 w-4 text-emerald-300" />
           </div>
-          <p className="mt-2.5 text-sm font-semibold text-white">
+          <p className="mt-3 text-base font-semibold text-white">
             {monthlyFuelSpend > 0 ? formatCurrency(monthlyFuelSpend) : '--'}
           </p>
         </div>
 
-        <div className="rounded-[1.25rem] border border-white/8 bg-slate-900/80 p-3">
+        <div className="rounded-[1.3rem] border border-white/8 bg-slate-900/80 p-3.5">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] text-slate-400">Spese mensili</span>
+            <span className="text-xs text-slate-400">Spese mensili</span>
             <ReceiptText className="h-4 w-4 text-amber-300" />
           </div>
-          <p className="mt-2.5 text-sm font-semibold text-white">
+          <p className="mt-3 text-base font-semibold text-white">
             {monthlyExpenses > 0 ? formatCurrency(monthlyExpenses) : '--'}
           </p>
         </div>
 
-        <div className="rounded-[1.25rem] border border-white/8 bg-slate-900/80 p-3">
+        <div className="rounded-[1.3rem] border border-white/8 bg-slate-900/80 p-3.5">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] text-slate-400">Consumo effettivo</span>
+            <span className="text-xs text-slate-400">Consumo effettivo</span>
             <Route className="h-4 w-4 text-sky-300" />
           </div>
-          <p className="mt-2.5 text-sm font-semibold text-white">
+          <p className="mt-3 text-base font-semibold text-white">
             {latestComparableInsight
               ? `${formatDecimal(latestComparableInsight.km_per_liter ?? 0)} km/L`
               : '--'}
@@ -122,13 +122,13 @@ export function OverviewSection({ vehicles, refuels, expenses }: OverviewSection
         </div>
       </div>
 
-      <article className="rounded-[1.25rem] border border-white/8 bg-slate-900/80 p-3.5">
+      <article className="rounded-[1.3rem] border border-white/8 bg-slate-900/80 p-4">
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">
               Ultimo rifornimento
             </p>
-            <h3 className="mt-1.5 text-base font-semibold text-white">
+            <h3 className="mt-1.5 text-[1.05rem] font-semibold text-white">
               {latestRefuel
                 ? vehiclesById.get(latestRefuel.vehicle_id)?.name || 'Veicolo'
                 : 'Ancora nessun rifornimento'}
@@ -148,7 +148,7 @@ export function OverviewSection({ vehicles, refuels, expenses }: OverviewSection
         </p>
 
         {latestRefuel && refuelInsights.get(latestRefuel.id)?.has_valid_full_to_full ? (
-          <div className="mt-3 grid grid-cols-3 gap-2 text-sm text-slate-300">
+          <div className="mt-3 grid grid-cols-3 gap-2.5 text-sm text-slate-300">
             <div className="rounded-2xl bg-slate-950/65 px-3 py-2.5">
               <dt className="text-[10px] uppercase tracking-[0.14em] text-slate-500">Km</dt>
               <dd className="mt-1 font-medium text-white">
@@ -171,13 +171,13 @@ export function OverviewSection({ vehicles, refuels, expenses }: OverviewSection
         ) : null}
       </article>
 
-      <article className="rounded-[1.25rem] border border-white/8 bg-slate-900/80 p-3.5">
+      <article className="rounded-[1.3rem] border border-white/8 bg-slate-900/80 p-4">
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">
               Ultima spesa
             </p>
-            <h3 className="mt-1.5 text-base font-semibold text-white">
+            <h3 className="mt-1.5 text-[1.05rem] font-semibold text-white">
               {latestExpense ? latestExpense.category : 'Ancora nessuna spesa'}
             </h3>
           </div>
@@ -196,11 +196,11 @@ export function OverviewSection({ vehicles, refuels, expenses }: OverviewSection
       </article>
 
       {latestComparableRefuel && latestComparableInsight ? (
-        <div className="rounded-[1.25rem] border border-sky-400/15 bg-sky-500/8 p-3.5">
+        <div className="rounded-[1.3rem] border border-sky-400/15 bg-sky-500/8 p-4">
           <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-sky-200">
             Ultimo pieno compatibile
           </p>
-          <h3 className="mt-1.5 text-base font-semibold text-white">
+          <h3 className="mt-1.5 text-[1.05rem] font-semibold text-white">
             {vehiclesById.get(latestComparableRefuel.vehicle_id)?.name || 'Veicolo'}
           </h3>
           <p className="mt-2 text-sm leading-6 text-slate-300">
