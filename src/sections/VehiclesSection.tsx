@@ -1,4 +1,4 @@
-import { Pencil, Plus } from 'lucide-react';
+import { FileSpreadsheet, Pencil, Plus } from 'lucide-react';
 import { BrandLogo } from '../components/BrandLogo';
 import type { Vehicle } from '../types/domain';
 
@@ -7,6 +7,7 @@ interface VehiclesSectionProps {
   isLoading: boolean;
   onAddVehicle: () => void;
   onEditVehicle: (vehicle: Vehicle) => void;
+  onExportVehicle: (vehicle: Vehicle) => void;
 }
 
 function formatTankCapacity(value: number) {
@@ -23,6 +24,7 @@ export function VehiclesSection({
   isLoading,
   onAddVehicle,
   onEditVehicle,
+  onExportVehicle,
 }: VehiclesSectionProps) {
   if (isLoading) {
     return (
@@ -90,14 +92,24 @@ export function VehiclesSection({
                 </p>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={() => onEditVehicle(vehicle)}
-              className="rounded-full border border-white/10 bg-white/5 p-2 text-slate-300 transition hover:bg-white/10"
-              title="Modifica veicolo"
-            >
-              <Pencil className="h-4 w-4" />
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => onExportVehicle(vehicle)}
+                className="rounded-full border border-white/10 bg-white/5 p-2 text-emerald-200 transition hover:bg-white/10"
+                title="Esporta XLSX"
+              >
+                <FileSpreadsheet className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => onEditVehicle(vehicle)}
+                className="rounded-full border border-white/10 bg-white/5 p-2 text-slate-300 transition hover:bg-white/10"
+                title="Modifica veicolo"
+              >
+                <Pencil className="h-4 w-4" />
+              </button>
+            </div>
           </div>
 
           <div className="mt-3 flex flex-wrap gap-2 pl-1">

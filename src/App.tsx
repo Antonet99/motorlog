@@ -14,6 +14,7 @@ import {
 import { AddEntryModal } from './components/AddEntryModal';
 import { AuthScreen } from './components/AuthScreen';
 import { BrandLogo } from './components/BrandLogo';
+import { downloadVehicleWorkbook } from './lib/export';
 import { isUsingFirebaseEmulators, localAuthEmail } from './lib/env';
 import {
   ACCESS_DENIED_MESSAGE,
@@ -452,6 +453,20 @@ export default function App() {
     setToast({ message: 'Veicolo aggiornato.', tone: 'success' });
   };
 
+  const handleExportVehicle = (vehicle: Vehicle) => {
+    try {
+      downloadVehicleWorkbook(
+        vehicle,
+        visibleRefuels.filter(refuel => refuel.vehicle_id === vehicle.id),
+        visibleExpenses.filter(expense => expense.vehicle_id === vehicle.id),
+      );
+      setToast({ message: `Export XLSX pronto per ${vehicle.name}.`, tone: 'success' });
+    } catch (error) {
+      console.error('Failed to export vehicle workbook', error);
+      setToast({ message: 'Export XLSX non riuscito. Riprova.', tone: 'error' });
+    }
+  };
+
   const handleCreateRefuel = async (input: RefuelInput) => {
     await createRefuel(input);
     setModalState(null);
@@ -760,6 +775,7 @@ export default function App() {
               onEditVehicle={vehicle =>
                 setModalState({ kind: 'vehicle', mode: 'edit', vehicle })
               }
+              onExportVehicle={handleExportVehicle}
             />
           ) : activeTab === 'refuels' ? (
             <RefuelsSection
@@ -919,8 +935,8 @@ export default function App() {
             <p className="mt-3 text-sm leading-6 text-slate-300">
               {vehicleDeletionConfirm.linkedRefuelsCount > 0 ||
               vehicleDeletionConfirm.linkedExpensesCount > 0
-                ? `Questa azione elimina anche ${vehicleDeletionConfirm.linkedRefuelsCount} rifornimenti e ${vehicleDeletionConfirm.linkedExpensesCount} spese collegate. Non si puo annullare.`
-                : 'Questo veicolo verra eliminato definitivamente. Non si puo annullare.'}
+                ? 'Eliminera anche tutti i rifornimenti e le spese collegate. Questa azione non si puo annullare.'
+                : 'Questo veicolo verra eliminato definitivamente. Questa azione non si puo annullare.'}
             </p>
             <div className="mt-5 flex items-center gap-3">
               <button
