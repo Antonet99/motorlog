@@ -1,0 +1,43 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 512 512"
+  role="img"
+  aria-labelledby="motorlogIconTitle motorlogIconDesc"
+>
+  <title id="motorlogIconTitle">Motorlog icon</title>
+  <desc id="motorlogIconDesc">
+    Angular blue M with a centered road mark on a dark background.
+  </desc>
+  <defs>
+    <linearGradient id="motorlogBackground" x1="256" x2="256" y1="32" y2="480" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#171b23" />
+      <stop offset="1" stop-color="#10141b" />
+    </linearGradient>
+    <linearGradient id="motorlogBlue" x1="141" x2="371" y1="142" y2="378" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#23a4ff" />
+      <stop offset="1" stop-color="#0d84ff" />
+    </linearGradient>
+  </defs>
+
+  <rect width="512" height="512" rx="76" fill="url(#motorlogBackground)" />
+
+  <path
+    d="M125 380V144H189L256 211L323 144H387V380"
+    fill="none"
+    stroke="url(#motorlogBlue)"
+    stroke-linejoin="miter"
+    stroke-width="31"
+  />
+  <path
+    d="M167 356V188H213L256 231L299 188H345V356"
+    fill="none"
+    stroke="url(#motorlogBlue)"
+    stroke-linejoin="miter"
+    stroke-width="24"
+  />
+
+  <rect x="206" y="284" width="22" height="96" fill="url(#motorlogBlue)" />
+  <rect x="284" y="284" width="22" height="96" fill="url(#motorlogBlue)" />
+  <rect x="246" y="314" width="20" height="24" fill="url(#motorlogBlue)" />
+  <rect x="246" y="347" width="20" height="24" fill="url(#motorlogBlue)" />
+</svg>
