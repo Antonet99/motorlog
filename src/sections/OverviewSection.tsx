@@ -5,6 +5,7 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Cell,
   ReferenceLine,
   ResponsiveContainer,
   Tooltip,
@@ -85,7 +86,6 @@ function formatDecimal(value: number) {
 
 function formatDate(value: string) {
   return dateFormatter.format(new Date(value + 'T12:00:00'));
-
 }
 
 function formatCurrencyAxisTick(value: number) {
@@ -102,6 +102,30 @@ function formatCostPerKmAxisTick(value: number) {
   }
 
   return value.toFixed(2) + ' €';
+}
+
+function getFuelBarRadius(point: MonthlySpendPoint): [number, number, number, number] {
+  if (point.fuel_spend <= 0) {
+    return [0, 0, 0, 0];
+  }
+
+  if (point.expense_spend > 0) {
+    return [0, 0, 8, 8];
+  }
+
+  return [8, 8, 8, 8];
+}
+
+function getExpenseBarRadius(point: MonthlySpendPoint): [number, number, number, number] {
+  if (point.expense_spend <= 0) {
+    return [0, 0, 0, 0];
+  }
+
+  if (point.fuel_spend > 0) {
+    return [8, 8, 0, 0];
+  }
+
+  return [8, 8, 8, 8];
 }
 
 function EmptyChartState({
@@ -381,14 +405,26 @@ export function OverviewSection({ vehicles, refuels, expenses }: OverviewSection
                     dataKey="fuel_spend"
                     stackId="spend"
                     fill="url(#monthlyFuelFill)"
-                    radius={[8, 8, 0, 0]}
-                  />
+                  >
+                    {monthlySpendSeries.map(point => (
+                      <Cell
+                        key={`fuel-${point.month_key}`}
+                        radius={getFuelBarRadius(point)}
+                      />
+                    ))}
+                  </Bar>
                   <Bar
                     dataKey="expense_spend"
                     stackId="spend"
                     fill="url(#monthlyExpenseFill)"
-                    radius={[8, 8, 0, 0]}
-                  />
+                  >
+                    {monthlySpendSeries.map(point => (
+                      <Cell
+                        key={`expense-${point.month_key}`}
+                        radius={getExpenseBarRadius(point)}
+                      />
+                    ))}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
