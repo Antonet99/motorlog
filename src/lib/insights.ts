@@ -32,7 +32,7 @@ const monthLabelFormatter = new Intl.DateTimeFormat('it-IT', {
 
 const shortDateFormatter = new Intl.DateTimeFormat('it-IT', {
   day: '2-digit',
-  month: 'short',
+  month: '2-digit',
 });
 
 function compareByNewestDate(

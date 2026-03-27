@@ -72,6 +72,10 @@ function isFuelType(value: unknown): value is FuelType {
   return typeof value === 'string' && FUEL_TYPES.includes(value as FuelType);
 }
 
+function isOptionalFuelType(value: unknown): value is FuelType | null {
+  return value === null || isFuelType(value);
+}
+
 function isExpenseCategory(value: unknown): value is ExpenseCategory {
   return (
     typeof value === 'string' &&
@@ -122,27 +126,51 @@ function buildVehicleName(brand: string, model: string) {
   return `${brand.trim()} ${model.trim()}`.trim();
 }
 
-function normalizePlate(value: string) {
-  return value.trim().toUpperCase();
+function buildVehicleDisplayName(input: {
+  nickname: string | null;
+  vehicle_type: VehicleType;
+  brand: string | null;
+  model: string | null;
+  plate: string | null;
+}) {
+  const primaryLabel = buildVehicleName(input.brand ?? '', input.model ?? '');
+  return (input.nickname ?? primaryLabel) || input.plate || input.vehicle_type;
+}
+
+function normalizePlate(value: string | null) {
+  return value ? value.trim().toUpperCase() : null;
 }
 
 function sanitizeVehicleInput(input: VehicleInput) {
-  const brand = input.brand.trim();
-  const model = input.model.trim();
+  const brand = asOptionalString(input.brand);
+  const model = asOptionalString(input.model);
+  const nickname = asOptionalString(input.nickname);
+  const plate = normalizePlate(input.plate);
+  const color = asOptionalString(input.color);
+  const tankCapacity =
+    input.tank_capacity_liters === null
+      ? null
+      : Number(input.tank_capacity_liters.toFixed(2));
 
   return {
     uid: input.uid,
-    nickname: asOptionalString(input.nickname),
+    nickname,
     vehicle_type: input.vehicle_type,
     brand,
     model,
-    plate: normalizePlate(input.plate),
+    plate,
     year: input.year,
-    color: asOptionalString(input.color),
-    tank_capacity_liters: Number(input.tank_capacity_liters.toFixed(2)),
+    color,
+    tank_capacity_liters: tankCapacity,
     fuel_type: input.fuel_type,
     is_active: input.is_active,
-    name: buildVehicleName(brand, model),
+    name: buildVehicleDisplayName({
+      nickname,
+      vehicle_type: input.vehicle_type,
+      brand,
+      model,
+      plate,
+    }),
   };
 }
 
@@ -185,22 +213,24 @@ function parseVehicle(id: string, value: unknown): Vehicle | null {
   }
 
   const nickname = asOptionalString(value.nickname);
+  const brand = asOptionalString(value.brand);
+  const model = asOptionalString(value.model);
+  const plate = asOptionalString(value.plate);
   const color = asOptionalString(value.color);
   const year = value.year === null ? null : asOptionalInteger(value.year);
-  const tankCapacity = asPositiveNumber(value.tank_capacity_liters);
+  const tankCapacity =
+    value.tank_capacity_liters === null
+      ? null
+      : asPositiveNumber(value.tank_capacity_liters);
 
   if (
     typeof value.uid !== 'string' ||
     typeof value.name !== 'string' ||
-    typeof value.brand !== 'string' ||
-    typeof value.model !== 'string' ||
-    typeof value.plate !== 'string' ||
     typeof value.is_active !== 'boolean' ||
     typeof value.created_at !== 'string' ||
     typeof value.updated_at !== 'string' ||
     !isVehicleType(value.vehicle_type) ||
-    !isFuelType(value.fuel_type) ||
-    tankCapacity === null
+    !isOptionalFuelType(value.fuel_type)
   ) {
     return null;
   }
@@ -211,13 +241,13 @@ function parseVehicle(id: string, value: unknown): Vehicle | null {
     name: value.name,
     nickname,
     vehicle_type: value.vehicle_type,
-    brand: value.brand,
-    model: value.model,
-    plate: value.plate,
+    brand,
+    model,
+    plate,
     year,
     color,
     tank_capacity_liters: tankCapacity,
-    fuel_type: value.fuel_type,
+    fuel_type: value.fuel_type ?? null,
     is_active: value.is_active,
     created_at: value.created_at,
     updated_at: value.updated_at,
@@ -483,7 +513,7 @@ export async function updateVehicle(vehicleId: string, input: VehicleInput) {
     ...normalizedInput,
     is_active: shouldBeActive,
     uid: currentVehicle.uid,
-    name: buildVehicleName(normalizedInput.brand, normalizedInput.model),
+    name: buildVehicleDisplayName(normalizedInput),
     created_at: currentVehicle.created_at,
     updated_at: now,
   });

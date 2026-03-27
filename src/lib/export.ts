@@ -61,7 +61,9 @@ function toSheet(
 }
 
 function buildFilename(vehicle: Vehicle) {
-  const safeBase = `${vehicle.brand}-${vehicle.model}-${vehicle.plate}`
+  const safeBase = [vehicle.brand, vehicle.model, vehicle.plate]
+    .filter((value): value is string => Boolean(value))
+    .join('-')
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
@@ -93,15 +95,15 @@ export function downloadVehicleWorkbook(
 
   const summarySheet = XLSX.utils.aoa_to_sheet([
     ['Veicolo', ''],
-    ['Marca', vehicle.brand],
-    ['Modello', vehicle.model],
+    ['Marca', formatOptionalValue(vehicle.brand)],
+    ['Modello', formatOptionalValue(vehicle.model)],
     ['Nickname', formatOptionalValue(vehicle.nickname)],
     ['Tipo veicolo', vehicle.vehicle_type],
-    ['Targa', vehicle.plate],
+    ['Targa', formatOptionalValue(vehicle.plate)],
     ['Anno', formatOptionalValue(vehicle.year)],
     ['Colore', formatOptionalValue(vehicle.color)],
-    ['Capacita serbatoio (L)', vehicle.tank_capacity_liters],
-    ['Alimentazione', vehicle.fuel_type],
+    ['Capacita serbatoio (L)', formatOptionalValue(vehicle.tank_capacity_liters)],
+    ['Alimentazione', formatOptionalValue(vehicle.fuel_type)],
     [],
     ['Riepilogo', ''],
     ['Totale rifornimenti', sortedRefuels.length],

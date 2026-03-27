@@ -37,7 +37,7 @@ const decimalFormatter = new Intl.NumberFormat('it-IT', {
 
 const dateFormatter = new Intl.DateTimeFormat('it-IT', {
   day: '2-digit',
-  month: 'short',
+  month: '2-digit',
   year: 'numeric',
 });
 
@@ -190,6 +190,7 @@ export function RefuelsSection({
               Da
               <input
                 type="date"
+                lang="it-IT"
                 value={customRange.start}
                 onChange={event =>
                   setCustomRange(current => ({ ...current, start: event.target.value }))
@@ -201,6 +202,7 @@ export function RefuelsSection({
               A
               <input
                 type="date"
+                lang="it-IT"
                 value={customRange.end}
                 onChange={event =>
                   setCustomRange(current => ({ ...current, end: event.target.value }))
