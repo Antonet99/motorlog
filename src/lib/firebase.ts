@@ -23,6 +23,7 @@ import {
 export const ALLOWED_EMAILS = [
   'antoniobaio90@gmail.com',
   'matteomoretti927@gmail.com',
+  'maopacmare@gmail.com',
 ] as const;
 export const ACCESS_DENIED_MESSAGE =
   'Accesso consentito solo agli account autorizzati.';
