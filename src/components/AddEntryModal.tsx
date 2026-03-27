@@ -93,7 +93,7 @@ interface ExpenseFormState {
 const INPUT_CLASS_NAME =
   'mt-2 w-full rounded-2xl border border-white/10 bg-slate-900 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-sky-400/50 focus:ring-2 focus:ring-sky-400/20';
 
-const LABEL_CLASS_NAME = 'block text-sm font-medium text-slate-200';
+const LABEL_CLASS_NAME = 'block min-w-0 text-sm font-medium text-slate-200';
 
 function getInitialVehicleState(vehicle?: Vehicle | null): VehicleFormState {
   if (!vehicle) {
