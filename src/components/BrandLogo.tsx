@@ -4,7 +4,7 @@ import { getBrandLogoUrl } from '../lib/logos';
 import type { VehicleType } from '../types/domain';
 
 interface BrandLogoProps {
-  brand: string;
+  brand: string | null | undefined;
   vehicleType: VehicleType;
   size?: 'sm' | 'md' | 'lg';
 }
@@ -17,9 +17,10 @@ const SIZE_CLASS_NAMES: Record<NonNullable<BrandLogoProps['size']>, string> = {
 
 export function BrandLogo({ brand, vehicleType, size = 'md' }: BrandLogoProps) {
   const [hasError, setHasError] = useState(false);
+  const normalizedBrand = brand ?? '';
   const logoUrl = useMemo(
-    () => getBrandLogoUrl(brand, size === 'sm' ? 'thumb' : 'optimized'),
-    [brand, size],
+    () => getBrandLogoUrl(normalizedBrand, size === 'sm' ? 'thumb' : 'optimized'),
+    [normalizedBrand, size],
   );
 
   useEffect(() => {
@@ -35,7 +36,7 @@ export function BrandLogo({ brand, vehicleType, size = 'md' }: BrandLogoProps) {
       {logoUrl && !hasError ? (
         <img
           src={logoUrl}
-          alt={`Logo ${brand}`}
+          alt={normalizedBrand ? `Logo ${normalizedBrand}` : 'Logo veicolo'}
           loading="lazy"
           className="h-full w-full object-contain"
           onError={() => setHasError(true)}

@@ -67,7 +67,7 @@ interface VehicleFormState {
   year: string;
   color: string;
   tank_capacity_liters: string;
-  fuel_type: VehicleInput['fuel_type'];
+  fuel_type: VehicleInput['fuel_type'] | '';
 }
 
 interface RefuelFormState {
@@ -118,8 +118,9 @@ function getInitialVehicleState(vehicle?: Vehicle | null): VehicleFormState {
     plate: vehicle.plate,
     year: vehicle.year === null ? '' : String(vehicle.year),
     color: vehicle.color ?? '',
-    tank_capacity_liters: String(vehicle.tank_capacity_liters),
-    fuel_type: vehicle.fuel_type,
+    tank_capacity_liters:
+      vehicle.tank_capacity_liters === null ? '' : String(vehicle.tank_capacity_liters),
+    fuel_type: vehicle.fuel_type ?? '',
   };
 }
 
@@ -292,18 +293,13 @@ function VehicleForm({
     const tankCapacity = parsePositiveDecimal(formState.tank_capacity_liters);
     const year = parseOptionalInteger(formState.year);
 
-    if (!brand || !model || !plate) {
-      setErrorMessage('Marca, modello e targa sono obbligatori.');
-      return;
-    }
-
-    if (tankCapacity === null || tankCapacity <= 0) {
-      setErrorMessage('Inserisci una capacita serbatoio valida.');
-      return;
-    }
-
     if (formState.year.trim() && year === null) {
       setErrorMessage('Anno non valido.');
+      return;
+    }
+
+    if (formState.tank_capacity_liters.trim() && (tankCapacity === null || tankCapacity <= 0)) {
+      setErrorMessage('Serbatoio non valido.');
       return;
     }
 
@@ -313,15 +309,15 @@ function VehicleForm({
     try {
       await onSubmit({
         uid,
-        brand,
-        model,
+        brand: brand || null,
+        model: model || null,
         nickname: formState.nickname.trim() || null,
         vehicle_type: formState.vehicle_type,
-        plate,
+        plate: plate || null,
         year,
         color: formState.color.trim() || null,
         tank_capacity_liters: tankCapacity,
-        fuel_type: formState.fuel_type,
+        fuel_type: formState.fuel_type || null,
         is_active: vehicle?.is_active ?? false,
       });
     } catch (error) {
@@ -390,6 +386,7 @@ function VehicleForm({
                     }, 120);
                   }}
                   onChange={event => {
+                    updateField('brand', event.target.value);
                     setBrandQuery(event.target.value);
                     setIsBrandMenuOpen(true);
                   }}
@@ -400,7 +397,7 @@ function VehicleForm({
                     }
                   }}
                   className="min-w-0 flex-1 bg-transparent text-sm text-white outline-none placeholder:text-slate-500"
-                  placeholder="Cerca marca"
+                  placeholder="Libero, con suggerimenti marca"
                 />
               </div>
 
@@ -426,13 +423,17 @@ function VehicleForm({
                       ))
                     ) : (
                       <p className="px-3 py-3 text-sm text-slate-400">
-                        Nessuna marca trovata nel dataset loghi.
+                        Nessuna marca trovata. Puoi comunque inserire un veicolo libero.
                       </p>
                     )}
                   </div>
                 </div>
               ) : null}
             </div>
+            <p className="mt-2 text-xs leading-5 text-slate-500">
+              Facoltativa. Se trovi una marca nota la usiamo anche per il logo; altrimenti il
+              veicolo resta libero.
+            </p>
           </label>
 
           <label className={LABEL_CLASS_NAME}>
@@ -514,11 +515,12 @@ function VehicleForm({
                 onChange={event =>
                   updateField(
                     'fuel_type',
-                    event.target.value as VehicleInput['fuel_type'],
+                    event.target.value as VehicleInput['fuel_type'] | '',
                   )
                 }
                 className={INPUT_CLASS_NAME}
               >
+                <option value="">Non specificata</option>
                 {FUEL_TYPE_OPTIONS.map(option => (
                   <option key={option} value={option}>
                     {option}

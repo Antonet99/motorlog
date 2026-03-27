@@ -10,9 +10,17 @@ interface VehiclesSectionProps {
   onExportVehicle: (vehicle: Vehicle) => void;
 }
 
-function formatTankCapacity(value: number) {
+function formatTankCapacity(value: number | null) {
+  if (value === null) {
+    return '--';
+  }
+
   const normalized = Number.isInteger(value) ? String(value) : value.toFixed(1);
   return `${normalized} L`;
+}
+
+function getVehicleSubtitle(vehicle: Vehicle) {
+  return vehicle.nickname ?? vehicle.plate ?? vehicle.brand ?? 'Dettagli opzionali';
 }
 
 function getVehicleCountLabel(count: number) {
@@ -88,7 +96,7 @@ export function VehiclesSection({
                   {vehicle.name}
                 </h3>
                 <p className="truncate text-sm text-slate-400">
-                  {vehicle.nickname || vehicle.plate}
+                  {getVehicleSubtitle(vehicle)}
                 </p>
               </div>
             </div>
@@ -116,9 +124,11 @@ export function VehiclesSection({
             <span className="rounded-full border border-sky-400/20 bg-sky-500/10 px-2.5 py-1 text-[10px] font-medium text-sky-100">
               {vehicle.vehicle_type}
             </span>
-            <span className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-2.5 py-1 text-[10px] font-medium text-emerald-100">
-              {vehicle.fuel_type}
-            </span>
+            {vehicle.fuel_type ? (
+              <span className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-2.5 py-1 text-[10px] font-medium text-emerald-100">
+                {vehicle.fuel_type}
+              </span>
+            ) : null}
             {vehicle.is_active ? (
               <span className="rounded-full border border-white/12 bg-white/7 px-2.5 py-1 text-[10px] font-medium text-white">
                 Attivo
@@ -131,7 +141,7 @@ export function VehiclesSection({
               <dt className="text-[10px] uppercase tracking-[0.14em] text-slate-500">
                 Targa
               </dt>
-              <dd className="mt-1 font-medium text-white">{vehicle.plate}</dd>
+              <dd className="mt-1 font-medium text-white">{vehicle.plate ?? '--'}</dd>
             </div>
             <div className="rounded-2xl bg-slate-950/65 px-3 py-2.5">
               <dt className="text-[10px] uppercase tracking-[0.14em] text-slate-500">

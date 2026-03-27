@@ -44,13 +44,13 @@ export interface Vehicle {
   name: string;
   nickname: string | null;
   vehicle_type: VehicleType;
-  brand: string;
-  model: string;
-  plate: string;
+  brand: string | null;
+  model: string | null;
+  plate: string | null;
   year: number | null;
   color: string | null;
-  tank_capacity_liters: number;
-  fuel_type: FuelType;
+  tank_capacity_liters: number | null;
+  fuel_type: FuelType | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -60,13 +60,13 @@ export interface VehicleInput {
   uid: string;
   nickname: string | null;
   vehicle_type: VehicleType;
-  brand: string;
-  model: string;
-  plate: string;
+  brand: string | null;
+  model: string | null;
+  plate: string | null;
   year: number | null;
   color: string | null;
-  tank_capacity_liters: number;
-  fuel_type: FuelType;
+  tank_capacity_liters: number | null;
+  fuel_type: FuelType | null;
   is_active: boolean;
 }
 

@@ -52,6 +52,10 @@ service cloud.firestore {
       ];
     }
 
+    function isOptionalFuelType(value) {
+      return value == null || isFuelType(value);
+    }
+
     function isExpenseCategory(value) {
       return value in [
         'Rata',
@@ -97,11 +101,6 @@ service cloud.firestore {
                'uid',
                'name',
                'vehicle_type',
-               'brand',
-               'model',
-               'plate',
-               'tank_capacity_liters',
-               'fuel_type',
                'is_active',
                'created_at',
                'updated_at'
@@ -110,15 +109,16 @@ service cloud.firestore {
              isShortString(data.name, 160) &&
              isOptionalString(data.nickname, 80) &&
              isVehicleType(data.vehicle_type) &&
-             isShortString(data.brand, 80) &&
-             isShortString(data.model, 120) &&
-             isShortString(data.plate, 24) &&
+             isOptionalString(data.brand, 80) &&
+             isOptionalString(data.model, 120) &&
+             isOptionalString(data.plate, 24) &&
              (data.year == null || (data.year is int && data.year >= 1900 && data.year <= 2100)) &&
              isOptionalString(data.color, 50) &&
-             data.tank_capacity_liters is number &&
-             data.tank_capacity_liters > 0 &&
-             data.tank_capacity_liters < 150 &&
-             isFuelType(data.fuel_type) &&
+             (data.tank_capacity_liters == null ||
+               (data.tank_capacity_liters is number &&
+                data.tank_capacity_liters > 0 &&
+                data.tank_capacity_liters < 150)) &&
+             isOptionalFuelType(data.fuel_type) &&
              data.is_active is bool &&
              isDateString(data.created_at) &&
              isDateString(data.updated_at);
