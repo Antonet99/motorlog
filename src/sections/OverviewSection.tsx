@@ -355,11 +355,11 @@ export function OverviewSection({ vehicles, refuels, expenses }: OverviewSection
 
         <div className="mt-4 flex flex-wrap gap-2 text-[11px]">
           <span className="inline-flex items-center gap-2 rounded-full border border-emerald-400/15 bg-emerald-500/10 px-2.5 py-1 text-emerald-100">
-            <span className="h-2 w-2 rounded-full bg-emerald-300" />
+            <span className="status-led status-led-emerald" />
             Carburante {hasMonthlySpendData ? formatCurrency(monthlyFuelTotal) : '--'}
           </span>
           <span className="inline-flex items-center gap-2 rounded-full border border-amber-400/15 bg-amber-500/10 px-2.5 py-1 text-amber-100">
-            <span className="h-2 w-2 rounded-full bg-amber-300" />
+            <span className="status-led status-led-amber" />
             Spese {hasMonthlySpendData ? formatCurrency(monthlyExpenseTotal) : '--'}
           </span>
         </div>
@@ -370,7 +370,7 @@ export function OverviewSection({ vehicles, refuels, expenses }: OverviewSection
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
                   data={monthlySpendSeries}
-                  margin={{ top: 10, right: 0, left: -22, bottom: 0 }}
+                  margin={{ top: 10, right: 0, left: 6, bottom: 0 }}
                   barCategoryGap={14}
                 >
                   <defs>
@@ -393,7 +393,8 @@ export function OverviewSection({ vehicles, refuels, expenses }: OverviewSection
                   <YAxis
                     axisLine={false}
                     tickLine={false}
-                    width={42}
+                    width={56}
+                    tickMargin={8}
                     tick={{ fill: '#64748b', fontSize: 10 }}
                     tickFormatter={formatCurrencyAxisTick}
                   />

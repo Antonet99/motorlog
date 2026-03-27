@@ -71,6 +71,30 @@ code {
   animation: quick-add-enter 300ms ease;
 }
 
+.status-led {
+  display: inline-block;
+  height: 0.65rem;
+  width: 0.65rem;
+  border-radius: 9999px;
+  animation: status-led-pulse 1.8s ease-in-out infinite;
+}
+
+.status-led-emerald {
+  background: #6ee7b7;
+  box-shadow:
+    0 0 0 1px rgb(16 185 129 / 0.14),
+    0 0 10px rgb(52 211 153 / 0.42),
+    0 0 18px rgb(16 185 129 / 0.18);
+}
+
+.status-led-amber {
+  background: #fcd34d;
+  box-shadow:
+    0 0 0 1px rgb(245 158 11 / 0.14),
+    0 0 10px rgb(251 191 36 / 0.38),
+    0 0 18px rgb(245 158 11 / 0.18);
+}
+
 .quick-add-overlay {
   position: fixed;
   inset: -12vh 0 -12vh;
@@ -119,10 +143,26 @@ code {
   }
 }
 
+@keyframes status-led-pulse {
+  0%,
+  100% {
+    opacity: 0.88;
+    transform: scale(0.92);
+    filter: saturate(0.96);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1);
+    filter: saturate(1.08);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .section-enter,
   .toast-enter,
-  .quick-add-enter {
+  .quick-add-enter,
+  .status-led {
     animation: none;
   }
 }
