@@ -115,25 +115,29 @@ const NAV_ITEMS: Array<{
 const QUICK_ADD_OPTIONS: Array<{
   type: QuickAddType;
   label: string;
+  icon: typeof Plus;
   accentClassName: string;
 }> = [
   {
+    type: 'expense',
+    label: 'Spesa',
+    icon: CircleDollarSign,
+    accentClassName:
+      'border-amber-400/20 bg-amber-500/12 text-amber-100 shadow-[0_12px_30px_rgba(245,158,11,0.14)]',
+  },
+  {
     type: 'vehicle',
     label: 'Veicolo',
+    icon: CarFront,
     accentClassName:
       'border-sky-400/20 bg-sky-500/12 text-sky-100 shadow-[0_12px_30px_rgba(14,165,233,0.14)]',
   },
   {
     type: 'refuel',
     label: 'Rifornimento',
+    icon: Fuel,
     accentClassName:
       'border-emerald-400/20 bg-emerald-500/12 text-emerald-100 shadow-[0_12px_30px_rgba(16,185,129,0.14)]',
-  },
-  {
-    type: 'expense',
-    label: 'Spesa',
-    accentClassName:
-      'border-amber-400/20 bg-amber-500/12 text-amber-100 shadow-[0_12px_30px_rgba(245,158,11,0.14)]',
   },
 ];
 
@@ -718,41 +722,47 @@ export default function App() {
           </div>
 
           {visibleVehicles.length > 0 ? (
-            <div className="mt-2 flex items-center gap-2 rounded-[1.05rem] border border-white/8 bg-white/5 px-3 py-1.5">
-              {activeVehicle ? (
-                <BrandLogo
-                  brand={activeVehicle.brand}
-                  vehicleType={activeVehicle.vehicle_type}
-                  size="sm"
-                />
-              ) : (
-                <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-white/8 bg-slate-950/70 text-slate-300">
-                  <CarFront className="h-4 w-4" />
-                </span>
-              )}
-              <div className="relative min-w-0 flex-1">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-                  Veicolo selezionato
-                </p>
-                <select
-                  value={activeVehicle?.id ?? ''}
-                  onChange={event => {
-                    void handleSelectActiveVehicle(event.target.value);
-                  }}
-                  disabled={isSwitchingVehicle}
-                  className="mt-0.5 w-full appearance-none bg-transparent pr-6 text-sm font-medium text-white outline-none disabled:cursor-not-allowed disabled:text-slate-500"
-                >
-                  {visibleVehicles.map(vehicle => (
-                    <option
-                      key={vehicle.id}
-                      value={vehicle.id}
-                      className="bg-slate-950 text-white"
-                    >
-                      {vehicle.name}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-0 top-[0.95rem] h-4 w-4 text-slate-500" />
+            <div className="mt-2 relative rounded-[1.05rem] border border-white/8 bg-white/5 px-3 py-1.5">
+              <select
+                aria-label="Seleziona veicolo attivo"
+                value={activeVehicle?.id ?? ''}
+                onChange={event => {
+                  void handleSelectActiveVehicle(event.target.value);
+                }}
+                disabled={isSwitchingVehicle}
+                className="absolute inset-0 z-10 h-full w-full cursor-pointer appearance-none rounded-[1.05rem] opacity-0 disabled:cursor-not-allowed"
+              >
+                {visibleVehicles.map(vehicle => (
+                  <option
+                    key={vehicle.id}
+                    value={vehicle.id}
+                    className="bg-slate-950 text-white"
+                  >
+                    {vehicle.name}
+                  </option>
+                ))}
+              </select>
+              <div className="flex items-center gap-2">
+                {activeVehicle ? (
+                  <BrandLogo
+                    brand={activeVehicle.brand}
+                    vehicleType={activeVehicle.vehicle_type}
+                    size="sm"
+                  />
+                ) : (
+                  <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-white/8 bg-slate-950/70 text-slate-300">
+                    <CarFront className="h-4 w-4" />
+                  </span>
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                    Veicolo selezionato
+                  </p>
+                  <p className="mt-0.5 truncate pr-6 text-sm font-medium text-white">
+                    {activeVehicle?.name ?? 'Seleziona veicolo'}
+                  </p>
+                </div>
+                <ChevronDown className="pointer-events-none h-4 w-4 shrink-0 text-slate-500" />
               </div>
             </div>
           ) : null}
@@ -848,8 +858,9 @@ export default function App() {
                 key={option.type}
                 type="button"
                 onClick={() => handleQuickAddSelection(option.type)}
-                className={`rounded-full border px-4 py-2.5 text-sm font-semibold transition hover:scale-[1.02] ${option.accentClassName}`}
+                className={`inline-flex items-center gap-2 rounded-full border px-4 py-2.5 text-sm font-semibold transition hover:scale-[1.02] ${option.accentClassName}`}
               >
+                <option.icon className="h-4 w-4" />
                 {option.label}
               </button>
             ))}
