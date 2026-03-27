@@ -148,7 +148,7 @@ export function ExpensesSection({
 
         {dateFilter === 'custom' ? (
           <div className="mt-3 grid grid-cols-2 gap-2">
-            <label className="text-xs text-slate-400">
+            <label className="block min-w-0 text-xs text-slate-400">
               Da
               <input
                 type="date"
@@ -160,7 +160,7 @@ export function ExpensesSection({
                 className="mt-1 w-full rounded-2xl border border-white/10 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-amber-400/40"
               />
             </label>
-            <label className="text-xs text-slate-400">
+            <label className="block min-w-0 text-xs text-slate-400">
               A
               <input
                 type="date"
