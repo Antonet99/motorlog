@@ -68,7 +68,7 @@ const compactNumberFormatter = new Intl.NumberFormat('it-IT', {
 
 const dateFormatter = new Intl.DateTimeFormat('it-IT', {
   day: '2-digit',
-  month: 'short',
+  month: '2-digit',
   year: 'numeric',
 });
 
@@ -285,6 +285,39 @@ export function OverviewSection({ vehicles, refuels, expenses }: OverviewSection
           point.cost_per_km < best.cost_per_km ? point : best,
         )
       : null;
+  const validConsumptionEntries = sortedRefuels
+    .map(refuel => {
+      const insight = refuelInsights.get(refuel.id) ?? null;
+
+      if (!insight?.has_valid_full_to_full || insight.distance_km === null) {
+        return null;
+      }
+
+      return {
+        distance_km: insight.distance_km,
+        liters: refuel.liters,
+      };
+    })
+    .filter(
+      (
+        entry,
+      ): entry is {
+        distance_km: number;
+        liters: number;
+      } => entry !== null,
+    );
+  const averageVehicleConsumption =
+    validConsumptionEntries.length > 0
+      ? Number(
+          (
+            validConsumptionEntries.reduce(
+              (total, entry) => total + entry.distance_km,
+              0,
+            ) /
+            validConsumptionEntries.reduce((total, entry) => total + entry.liters, 0)
+          ).toFixed(2),
+        )
+      : null;
 
   return (
     <section className="space-y-3.5">
@@ -319,12 +352,12 @@ export function OverviewSection({ vehicles, refuels, expenses }: OverviewSection
 
         <div className="rounded-[1.3rem] border border-white/8 bg-slate-900/80 p-3.5">
           <div className="flex items-center justify-between">
-            <span className="text-xs text-slate-400">Consumo effettivo</span>
+            <span className="text-xs text-slate-400">Consumo medio</span>
             <Route className="h-4 w-4 text-sky-300" />
           </div>
           <p className="mt-3 text-base font-semibold text-white">
-            {latestComparableInsight
-              ? formatDecimal(latestComparableInsight.km_per_liter ?? 0) + ' km/L'
+            {averageVehicleConsumption !== null
+              ? formatDecimal(averageVehicleConsumption) + ' km/L'
               : '--'}
           </p>
         </div>

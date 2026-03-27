@@ -751,6 +751,7 @@ function RefuelForm({
               Data
               <input
                 type="date"
+                lang="it-IT"
                 value={formState.date}
                 onChange={event => updateField('date', event.target.value)}
                 className={INPUT_CLASS_NAME}
@@ -963,6 +964,7 @@ function ExpenseForm({
               Data
               <input
                 type="date"
+                lang="it-IT"
                 value={formState.date}
                 onChange={event => updateField('date', event.target.value)}
                 className={INPUT_CLASS_NAME}
