@@ -55,6 +55,20 @@ select {
   appearance: none;
 }
 
+input[type="date"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  min-width: 0;
+  display: block;
+}
+
+input[type="date"]::-webkit-date-and-time-value,
+input[type="date"]::-webkit-datetime-edit,
+input[type="date"]::-webkit-datetime-edit-fields-wrapper {
+  min-width: 0;
+}
+
 code {
   font-family: "SFMono-Regular", ui-monospace, monospace;
 }
