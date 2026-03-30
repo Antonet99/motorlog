@@ -72,6 +72,10 @@ service cloud.firestore {
       ];
     }
 
+    function isExpenseRecurrenceIntervalMonths(value) {
+      return value in [1, 2, 3, 6, 12];
+    }
+
     function vehicleDocPath(userId, vehicleId) {
       return /databases/$(database)/documents/users/$(userId)/vehicles/$(vehicleId);
     }
@@ -180,6 +184,8 @@ service cloud.firestore {
                'category',
                'amount',
                'date',
+               'is_recurring',
+               'recurrence_interval_months',
                'notes',
                'created_at',
                'updated_at'
@@ -200,6 +206,12 @@ service cloud.firestore {
              data.amount > 0 &&
              data.amount < 50000 &&
              isDayString(data.date) &&
+             ((!('is_recurring' in data) && !('recurrence_interval_months' in data)) ||
+              ((data.is_recurring is bool) &&
+               ((data.is_recurring == true &&
+                 isExpenseRecurrenceIntervalMonths(data.recurrence_interval_months)) ||
+                (data.is_recurring == false &&
+                 data.recurrence_interval_months == null)))) &&
              isOptionalString(data.notes, 500) &&
              isDateString(data.created_at) &&
              isDateString(data.updated_at);

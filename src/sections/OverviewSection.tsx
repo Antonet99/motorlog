@@ -18,11 +18,11 @@ import {
   buildRefuelInsights,
   getCurrentMonthKey,
   isInMonth,
-  sortExpensesNewestFirst,
   sortRefuelsNewestFirst,
   type CostPerKmPoint,
   type MonthlySpendPoint,
 } from '../lib/insights';
+import { expandExpensesForDisplay } from '../lib/recurringExpenses';
 import type { Expense, Refuel, Vehicle } from '../types/domain';
 
 interface OverviewSectionProps {
@@ -232,7 +232,9 @@ function CostPerKmTooltip({
 
 export function OverviewSection({ vehicles, refuels, expenses }: OverviewSectionProps) {
   const sortedRefuels = sortRefuelsNewestFirst(refuels);
-  const sortedExpenses = sortExpensesNewestFirst(expenses);
+  const sortedExpenses = expandExpensesForDisplay(expenses).filter(
+    expense => !expense.is_projected,
+  );
   const refuelInsights = buildRefuelInsights(sortedRefuels);
   const vehiclesById = new Map(vehicles.map(vehicle => [vehicle.id, vehicle]));
   const monthKey = getCurrentMonthKey();
