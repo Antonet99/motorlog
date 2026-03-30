@@ -7,6 +7,10 @@ import {
   type EntryDateFilter,
   isWithinDateFilter,
 } from '../lib/dateFilters';
+import {
+  expandExpensesForDisplay,
+  getRecurrenceLabel,
+} from '../lib/recurringExpenses';
 import type { Expense, Vehicle } from '../types/domain';
 
 interface ExpensesSectionProps {
@@ -52,15 +56,16 @@ export function ExpensesSection({
     () => new Map(vehicles.map(vehicle => [vehicle.id, vehicle])),
     [vehicles],
   );
+  const displayExpenses = useMemo(() => expandExpensesForDisplay(expenses), [expenses]);
   const filteredExpenses = useMemo(
     () =>
-      expenses.filter(expense =>
+      displayExpenses.filter(expense =>
         isWithinDateFilter(expense.date, dateFilter, customRange),
       ),
-    [customRange, dateFilter, expenses],
+    [customRange, dateFilter, displayExpenses],
   );
   const totalExpenses = filteredExpenses.reduce(
-    (total, expense) => total + expense.amount,
+    (total, expense) => total + (expense.is_projected ? 0 : expense.amount),
     0,
   );
 
@@ -187,7 +192,7 @@ export function ExpensesSection({
 
         return (
           <article
-            key={expense.id}
+            key={expense.occurrence_key}
             className="relative overflow-hidden rounded-[1.35rem] border border-white/8 bg-slate-900/85 px-3.5 py-3.5 shadow-[0_14px_32px_rgba(2,6,23,0.24)]"
           >
             <span className="absolute bottom-3 left-0 top-3 w-1 rounded-r-full bg-amber-400/85" />
@@ -216,7 +221,7 @@ export function ExpensesSection({
               </div>
               <button
                 type="button"
-                onClick={() => onEditExpense(expense)}
+                onClick={() => onEditExpense(expense.source_expense)}
                 className="rounded-full border border-white/10 bg-white/5 p-2 text-slate-300 transition hover:bg-white/10"
                 title="Modifica spesa"
               >
@@ -228,6 +233,16 @@ export function ExpensesSection({
               <span className="rounded-full border border-amber-400/20 bg-amber-500/10 px-2.5 py-1 text-[10px] font-medium text-amber-100">
                 {expense.category}
               </span>
+              {expense.is_recurring ? (
+                <span className="rounded-full border border-sky-400/18 bg-sky-500/10 px-2.5 py-1 text-[10px] font-medium text-sky-100">
+                  {getRecurrenceLabel(expense.recurrence_interval_months) || 'Ricorrente'}
+                </span>
+              ) : null}
+              {expense.is_projected ? (
+                <span className="rounded-full border border-white/12 bg-white/7 px-2.5 py-1 text-[10px] font-medium text-slate-200">
+                  Prevista
+                </span>
+              ) : null}
               <span className="rounded-full border border-white/12 bg-white/7 px-2.5 py-1 text-[10px] font-medium text-white">
                 {formatDate(expense.date)}
               </span>

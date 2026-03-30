@@ -32,9 +32,13 @@ export const EXPENSE_CATEGORIES = [
   'Altro',
 ] as const;
 
+export const EXPENSE_RECURRENCE_INTERVALS = [1, 2, 3, 6, 12] as const;
+
 export type VehicleType = (typeof VEHICLE_TYPES)[number];
 export type FuelType = (typeof FUEL_TYPES)[number];
 export type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[number];
+export type ExpenseRecurrenceIntervalMonths =
+  (typeof EXPENSE_RECURRENCE_INTERVALS)[number];
 export type AppTab = 'overview' | 'vehicles' | 'refuels' | 'expenses';
 export type QuickAddType = 'vehicle' | 'refuel' | 'expense';
 
@@ -106,6 +110,8 @@ export interface Expense {
   category: ExpenseCategory;
   amount: number;
   date: string;
+  is_recurring: boolean;
+  recurrence_interval_months: ExpenseRecurrenceIntervalMonths | null;
   notes: string | null;
   created_at: string;
   updated_at: string;
@@ -117,5 +123,7 @@ export interface ExpenseInput {
   category: ExpenseCategory;
   amount: number;
   date: string;
+  is_recurring: boolean;
+  recurrence_interval_months: ExpenseRecurrenceIntervalMonths | null;
   notes: string | null;
 }
