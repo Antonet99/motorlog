@@ -13,10 +13,12 @@ import { getReadableDataError } from '../lib/data';
 import { BRAND_OPTIONS, getBrandOptionByLabel, getBrandSlug } from '../lib/logos';
 import {
   EXPENSE_CATEGORIES,
+  EXPENSE_RECURRENCE_INTERVALS,
   FUEL_TYPE_OPTIONS,
   VEHICLE_TYPES,
   type Expense,
   type ExpenseInput,
+  type ExpenseRecurrenceIntervalMonths,
   type Refuel,
   type RefuelInput,
   type Vehicle,
@@ -87,6 +89,8 @@ interface ExpenseFormState {
   category: ExpenseInput['category'];
   amount: string;
   date: string;
+  is_recurring: boolean;
+  recurrence_interval_months: string;
   notes: string;
 }
 
@@ -177,6 +181,8 @@ function getInitialExpenseState(
       category: 'Assicurazione',
       amount: '',
       date: getTodayValue(),
+      is_recurring: false,
+      recurrence_interval_months: '1',
       notes: '',
     };
   }
@@ -186,6 +192,11 @@ function getInitialExpenseState(
     category: expense.category,
     amount: String(expense.amount),
     date: expense.date,
+    is_recurring: expense.is_recurring,
+    recurrence_interval_months:
+      expense.recurrence_interval_months === null
+        ? '1'
+        : String(expense.recurrence_interval_months),
     notes: expense.notes ?? '',
   };
 }
@@ -217,6 +228,32 @@ function parseOdometer(value: string) {
 
   const parsed = Number.parseInt(value.trim(), 10);
   return Number.isInteger(parsed) && parsed >= 0 ? parsed : null;
+}
+
+function parseExpenseRecurrenceInterval(
+  value: string,
+): ExpenseRecurrenceIntervalMonths | null {
+  if (!value.trim()) {
+    return null;
+  }
+
+  const parsed = Number.parseInt(value, 10);
+
+  return EXPENSE_RECURRENCE_INTERVALS.includes(
+    parsed as ExpenseRecurrenceIntervalMonths,
+  )
+    ? (parsed as ExpenseRecurrenceIntervalMonths)
+    : null;
+}
+
+function getRecurringExpenseSaveErrorMessage(error: unknown) {
+  const dataError = error as Error & { code?: string };
+
+  if (dataError.code === 'permission-denied') {
+    return 'Le spese ricorrenti richiedono le nuove regole Firestore. In preview puoi validare la UI, ma il salvataggio funzionera solo dopo il deploy delle rules aggiornate.';
+  }
+
+  return getReadableDataError(error);
 }
 
 function VehicleForm({
@@ -873,6 +910,9 @@ function ExpenseForm({
 
   const handleSubmit = async () => {
     const amount = parsePositiveDecimal(formState.amount);
+    const recurrenceInterval = formState.is_recurring
+      ? parseExpenseRecurrenceInterval(formState.recurrence_interval_months)
+      : null;
 
     if (!formState.vehicle_id) {
       setErrorMessage('Seleziona un veicolo.');
@@ -889,6 +929,11 @@ function ExpenseForm({
       return;
     }
 
+    if (formState.is_recurring && recurrenceInterval === null) {
+      setErrorMessage('Scegli ogni quanto ripetere la spesa.');
+      return;
+    }
+
     setIsSubmitting(true);
     setErrorMessage(null);
 
@@ -899,11 +944,17 @@ function ExpenseForm({
         category: formState.category,
         amount,
         date: formState.date,
+        is_recurring: formState.is_recurring,
+        recurrence_interval_months: recurrenceInterval,
         notes: formState.notes.trim() || null,
       });
     } catch (error) {
       console.error('Failed to save expense', error);
-      setErrorMessage(getReadableDataError(error));
+      setErrorMessage(
+        formState.is_recurring
+          ? getRecurringExpenseSaveErrorMessage(error)
+          : getReadableDataError(error),
+      );
       setIsSubmitting(false);
       return;
     }
@@ -971,6 +1022,45 @@ function ExpenseForm({
               />
             </label>
           </div>
+
+          <label className="block">
+            <span className={LABEL_CLASS_NAME}>Ricorrenza</span>
+            <span className="mt-2 flex items-start gap-3 rounded-2xl border border-white/10 bg-slate-900 px-4 py-3 text-sm text-slate-200">
+              <input
+                type="checkbox"
+                checked={formState.is_recurring}
+                onChange={event =>
+                  updateField('is_recurring', event.target.checked)
+                }
+                className="mt-0.5 h-4 w-4 rounded border-white/20 bg-slate-950 text-amber-400 focus:ring-amber-400/30"
+              />
+              <span className="min-w-0">
+                <span className="block font-medium text-white">Spesa ricorrente</span>
+                <span className="mt-1 block text-xs leading-5 text-slate-400">
+                  La data indicata sopra viene usata come prima scadenza, anche se e nel passato o nel futuro.
+                </span>
+              </span>
+            </span>
+          </label>
+
+          {formState.is_recurring ? (
+            <label className={LABEL_CLASS_NAME}>
+              Ripeti
+              <select
+                value={formState.recurrence_interval_months}
+                onChange={event =>
+                  updateField('recurrence_interval_months', event.target.value)
+                }
+                className={INPUT_CLASS_NAME}
+              >
+                <option value="1">Ogni mese</option>
+                <option value="2">Ogni 2 mesi</option>
+                <option value="3">Ogni 3 mesi</option>
+                <option value="6">Ogni 6 mesi</option>
+                <option value="12">Ogni anno</option>
+              </select>
+            </label>
+          ) : null}
 
           <label className={LABEL_CLASS_NAME}>
             Note

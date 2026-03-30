@@ -16,6 +16,7 @@ import type {
   Expense,
   ExpenseCategory,
   ExpenseInput,
+  ExpenseRecurrenceIntervalMonths,
   FuelType,
   Refuel,
   RefuelInput,
@@ -46,6 +47,13 @@ const EXPENSE_CATEGORIES: ExpenseCategory[] = [
   'Multa',
   'Accessori',
   'Altro',
+];
+const EXPENSE_RECURRENCE_INTERVALS: ExpenseRecurrenceIntervalMonths[] = [
+  1,
+  2,
+  3,
+  6,
+  12,
 ];
 
 function getVehiclesCollection(uid: string) {
@@ -80,6 +88,17 @@ function isExpenseCategory(value: unknown): value is ExpenseCategory {
   return (
     typeof value === 'string' &&
     EXPENSE_CATEGORIES.includes(value as ExpenseCategory)
+  );
+}
+
+function isExpenseRecurrenceIntervalMonths(
+  value: unknown,
+): value is ExpenseRecurrenceIntervalMonths {
+  return (
+    typeof value === 'number' &&
+    EXPENSE_RECURRENCE_INTERVALS.includes(
+      value as ExpenseRecurrenceIntervalMonths,
+    )
   );
 }
 
@@ -197,13 +216,23 @@ function sanitizeRefuelInput(input: RefuelInput) {
 }
 
 function sanitizeExpenseInput(input: ExpenseInput) {
-  return {
+  const baseExpense = {
     uid: input.uid,
     vehicle_id: input.vehicle_id,
     category: input.category,
     amount: Number(input.amount.toFixed(2)),
     date: input.date,
     notes: asOptionalString(input.notes),
+  };
+
+  if (!input.is_recurring || input.recurrence_interval_months === null) {
+    return baseExpense;
+  }
+
+  return {
+    ...baseExpense,
+    is_recurring: true,
+    recurrence_interval_months: input.recurrence_interval_months,
   };
 }
 
@@ -310,6 +339,10 @@ function parseExpense(id: string, value: unknown): Expense | null {
     typeof value.vehicle_id !== 'string' ||
     typeof value.created_at !== 'string' ||
     typeof value.updated_at !== 'string' ||
+    (value.is_recurring !== undefined && typeof value.is_recurring !== 'boolean') ||
+    (value.recurrence_interval_months !== undefined &&
+      value.recurrence_interval_months !== null &&
+      !isExpenseRecurrenceIntervalMonths(value.recurrence_interval_months)) ||
     !isExpenseCategory(value.category) ||
     amount === null ||
     date === null
@@ -324,6 +357,12 @@ function parseExpense(id: string, value: unknown): Expense | null {
     category: value.category,
     amount,
     date,
+    is_recurring: value.is_recurring === true,
+    recurrence_interval_months: isExpenseRecurrenceIntervalMonths(
+      value.recurrence_interval_months,
+    )
+      ? value.recurrence_interval_months
+      : null,
     notes: asOptionalString(value.notes),
     created_at: value.created_at,
     updated_at: value.updated_at,
